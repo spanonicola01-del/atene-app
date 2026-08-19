@@ -10,7 +10,7 @@ import { ChevronLeft, ChevronRight, Plus, X, User, Phone, Trash2, Search, AlertT
 //  La chiave publishable/anon di Supabase è pensata per il browser.
 // ============================================================
 const SUPABASE_URL = "https://xzjwykabzxrjfwlhyhpn.supabase.co";
-const SUPABASE_KEY = "sb_publishable_7erwA44JxXePWQbSe5O7Ow_5RwRmF4w";";
+const SUPABASE_KEY = "INCOLLA_QUI_LA_CHIAVE";
 
 const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
 
@@ -985,4 +985,3 @@ const s = {
   repHourLbl: { fontSize: 9, color: "#A8A399", fontWeight: 600 },
   repHint: { fontSize: 12.5, color: "#5A574F", marginTop: 8, padding: "8px 12px", background: "#F7F5F0", borderRadius: 9 },
 };
-
