@@ -10,7 +10,7 @@ import { ChevronLeft, ChevronRight, Plus, X, User, Phone, Trash2, Search, AlertT
 //  La chiave publishable/anon di Supabase è pensata per il browser.
 // ============================================================
 const SUPABASE_URL = "https://xzjwykabzxrjfwlhyhpn.supabase.co";
-const SUPABASE_KEY = "INCOLLA_QUI_LA_CHIAVE";
+const SUPABASE_KEY = "sb_publishable_7erwA44JxXePWQbSe5O7Ow_5RwRmF4w";";
 
 const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
 
