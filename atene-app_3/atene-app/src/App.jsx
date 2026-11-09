@@ -23,10 +23,18 @@ const FIELDS = [
   { id: "padel1", name: "Padel 1", short: "P1", color: "#1565C0", tint: "#E4EDF8", price: 40 },
   { id: "padel2", name: "Padel 2", short: "P2", color: "#0097A7", tint: "#E0F1F3", price: 40 },
   { id: "evento", name: "Evento / Festa", short: "EV", color: "#AD1457", tint: "#F8E5EF", price: 0 },
+  { id: "scuola", name: "Scuola", short: "SC", color: "#EF6C00", tint: "#FDEEE0", price: 0 },
 ];
 const FIELD_MAP = Object.fromEntries(FIELDS.map((f) => [f.id, f]));
 
 const HOURS = Array.from({ length: 17 }, (_, i) => i + 8);
+// Orari di inizio selezionabili, a passi di mezz'ora (es. 16:30)
+const START_TIMES = HOURS.flatMap((h) => (h < 24 ? [h, h + 0.5] : [h]));
+// 16.5 -> "16:30"
+const oraLabel = (h) => {
+  const n = Number(h);
+  return String(Math.floor(n)).padStart(2, "0") + ":" + String(Math.round((n % 1) * 60)).padStart(2, "0");
+};
 const GIORNI = ["Lun", "Mar", "Mer", "Gio", "Ven", "Sab", "Dom"];
 const GIORNI_FULL = ["Lunedì","Martedì","Mercoledì","Giovedì","Venerdì","Sabato","Domenica"];
 const MESI = ["Gennaio","Febbraio","Marzo","Aprile","Maggio","Giugno","Luglio","Agosto","Settembre","Ottobre","Novembre","Dicembre"];
@@ -55,7 +63,7 @@ const waLink = (b) => {
   const f = FIELD_MAP[b.field];
   const d = new Date(b.date + "T00:00:00");
   const dataIt = d.toLocaleDateString("it-IT", { weekday: "long", day: "numeric", month: "long" });
-  const ora = String(b.hour).padStart(2, "0") + ":00";
+  const ora = oraLabel(b.hour);
   const durata = (b.duration || 1) + "h";
   const msg =
     `Ciao ${b.name || ""}, ti confermo la prenotazione presso Atene Central Village:\n` +
@@ -253,7 +261,7 @@ function Calendar({ session }) {
     if (!q) return [];
     return bookings
       .filter((b) => (b.name || "").toLowerCase().includes(q) || (b.phone || "").includes(q))
-      .sort((a, b) => (a.date + String(a.hour).padStart(2,"0")).localeCompare(b.date + String(b.hour).padStart(2,"0")));
+      .sort((a, b) => (a.date + oraLabel(a.hour)).localeCompare(b.date + oraLabel(b.hour)));
   }, [query, bookings]);
 
   const revenue = useMemo(() => {
@@ -266,14 +274,14 @@ function Calendar({ session }) {
     const weekSet = new Set((view === "week" ? weekDays : Array.from({ length: 7 }, (_, i) => { const d = startOfWeek(refDay); d.setDate(d.getDate() + i); return d; })).map(iso));
     let day = 0, week = 0, month = 0, dayCount = 0;
     const byField = {};
-    const cat = { calcio: { day: 0, week: 0, month: 0 }, padel: { day: 0, week: 0, month: 0 }, evento: { day: 0, week: 0, month: 0 } };
+    const cat = { calcio: { day: 0, week: 0, month: 0 }, padel: { day: 0, week: 0, month: 0 }, evento: { day: 0, week: 0, month: 0 }, scuola: { day: 0, week: 0, month: 0 } };
     for (const b of bookings) {
       const v = valueOf(b);
       const isDay = b.date === dayStr, isWeek = weekSet.has(b.date), isMonth = sameMonth(b.date, refDay);
       if (isDay) { day += v; dayCount++; }
       if (isWeek) week += v;
       if (isMonth) month += v;
-      const key = b.field === "calcio5" ? "calcio" : (b.field === "padel1" || b.field === "padel2") ? "padel" : b.field === "evento" ? "evento" : null;
+      const key = b.field === "calcio5" ? "calcio" : (b.field === "padel1" || b.field === "padel2") ? "padel" : b.field === "evento" ? "evento" : b.field === "scuola" ? "scuola" : null;
       if (key) { if (isDay) cat[key].day += v; if (isWeek) cat[key].week += v; if (isMonth) cat[key].month += v; }
       const inScope = view === "day" ? isDay : isWeek;
       if (inScope) byField[b.field] = (byField[b.field] || 0) + v;
@@ -351,6 +359,7 @@ function Calendar({ session }) {
               <CatPanel label="Calcio a 5" color="#2E7D32" data={revenue.cat.calcio} monthName={MESI[revenue.refDay.getMonth()]} />
               <CatPanel label="Padel" color="#1565C0" data={revenue.cat.padel} monthName={MESI[revenue.refDay.getMonth()]} />
               <CatPanel label="Eventi" color="#AD1457" data={revenue.cat.evento} monthName={MESI[revenue.refDay.getMonth()]} />
+              <CatPanel label="Scuola" color="#EF6C00" data={revenue.cat.scuola} monthName={MESI[revenue.refDay.getMonth()]} />
             </div>
           </div>
 
@@ -399,7 +408,7 @@ function WeekGrid({ weekDays, bookings, today, onSlot, onEvent }) {
             <div style={s.hourCell}>{String(h).padStart(2, "0")}:00</div>
             {weekDays.map((d, di) => {
               const dateStr = iso(d);
-              const cell = bookings.filter((b) => b.date === dateStr && b.hour === h);
+              const cell = bookings.filter((b) => b.date === dateStr && Math.floor(b.hour) === h);
               return (
                 <button key={di} style={s.slot} onClick={() => onSlot({ date: dateStr, hour: h })}>
                   {cell.map((b) => {
@@ -436,13 +445,13 @@ function DayGrid({ date, bookings, onSlot, onEvent }) {
           <React.Fragment key={h}>
             <div style={s.hourCell}>{String(h).padStart(2, "0")}:00</div>
             {FIELDS.map((f) => {
-              const cell = bookings.filter((b) => b.date === dateStr && b.field === f.id && b.hour === h);
+              const cell = bookings.filter((b) => b.date === dateStr && b.field === f.id && Math.floor(b.hour) === h);
               return (
                 <button key={f.id} style={s.slot} onClick={() => onSlot({ date: dateStr, hour: h, field: f.id })}>
                   {cell.map((b) => (
                     <div key={b.id} onClick={(e) => { e.stopPropagation(); onEvent(b); }} style={{ ...s.event, background: f.tint, borderLeft: `3px solid ${f.color}` }}>
                       <span style={s.evName}>{b.name || f.name}</span>
-                      <span style={s.evMeta}>{String(h).padStart(2,"0")}:00 · {b.duration || 1}h</span>
+                      <span style={s.evMeta}>{oraLabel(b.hour)} · {b.duration || 1}h</span>
                     </div>
                   ))}
                 </button>
@@ -475,7 +484,7 @@ function SearchResults({ results, onOpen, onClose }) {
                   <div style={s.resName}>{b.name || f.name}</div>
                   <div style={s.resMeta}>
                     {new Date(b.date + "T00:00:00").toLocaleDateString("it-IT", { weekday: "short", day: "numeric", month: "short" })}
-                    {" · "}{String(b.hour).padStart(2,"0")}:00 · {b.duration || 1}h{b.phone ? ` · ${b.phone}` : ""}
+                    {" · "}{oraLabel(b.hour)} · {b.duration || 1}h{b.phone ? ` · ${b.phone}` : ""}
                   </div>
                 </div>
               </button>
@@ -573,7 +582,7 @@ function BookingModal({ data, bookings, contacts = [], onClose, onSave, onSaveMa
           <div style={{ width: 92 }}>
             <label style={s.label}>Ora</label>
             <select value={hour} onChange={(e) => setHour(e.target.value)} style={s.input}>
-              {HOURS.map((h) => <option key={h} value={h}>{String(h).padStart(2,"0")}:00</option>)}
+              {START_TIMES.map((h) => <option key={h} value={h}>{oraLabel(h)}</option>)}
             </select>
           </div>
           <div style={{ width: 92 }}>
@@ -587,7 +596,7 @@ function BookingModal({ data, bookings, contacts = [], onClose, onSave, onSaveMa
         {conflict && (
           <div style={s.conflict}>
             <AlertTriangle size={16} />
-            <span>Sovrapposizione con <b>{conflict.name || FIELD_MAP[conflict.field].name}</b> ({String(conflict.hour).padStart(2,"0")}:00 · {conflict.duration || 1}h). Scegli un altro orario o campo.</span>
+            <span>Sovrapposizione con <b>{conflict.name || FIELD_MAP[conflict.field].name}</b> ({oraLabel(conflict.hour)} · {conflict.duration || 1}h). Scegli un altro orario o campo.</span>
           </div>
         )}
 
@@ -759,7 +768,7 @@ function ReportModal({ bookings, onClose }) {
       perCampo[b.field] = (perCampo[b.field] || 0) + v;
       contaCampo[b.field] = (contaCampo[b.field] || 0) + 1;
       totale += v;
-      perOra[b.hour] = (perOra[b.hour] || 0) + 1;
+      perOra[Math.floor(b.hour)] = (perOra[Math.floor(b.hour)] || 0) + 1;
     }
     // fascia più e meno frequentata
     const oreOrdinate = Object.entries(perOra).sort((a, b) => b[1] - a[1]);
@@ -772,10 +781,10 @@ function ReportModal({ bookings, onClose }) {
     // foglio 1: elenco prenotazioni
     const righe = dati.inRange
       .slice()
-      .sort((a, b) => (a.date + String(a.hour).padStart(2, "0")).localeCompare(b.date + String(b.hour).padStart(2, "0")))
+      .sort((a, b) => (a.date + oraLabel(a.hour)).localeCompare(b.date + oraLabel(b.hour)))
       .map((b) => ({
         Data: b.date,
-        Ora: String(b.hour).padStart(2, "0") + ":00",
+        Ora: oraLabel(b.hour),
         Durata_h: b.duration || 1,
         Campo: FIELD_MAP[b.field].name,
         Cliente: b.name || "",
@@ -853,7 +862,7 @@ function ReportModal({ bookings, onClose }) {
         </div>
         {dati.oreOrdinate.length > 0 && (
           <div style={s.repHint}>
-            Fascia più richiesta: <b>{String(dati.oreOrdinate[0][0]).padStart(2, "0")}:00</b> ({dati.oreOrdinate[0][1]} prenotazioni).
+            Fascia più richiesta: <b>{oraLabel(dati.oreOrdinate[0][0])}</b> ({dati.oreOrdinate[0][1]} prenotazioni).
           </div>
         )}
       </div>
@@ -916,7 +925,7 @@ const s = {
   dot: { width: 10, height: 10, borderRadius: 3 },
   gridWrap: { padding: "0 22px 30px", overflowX: "auto" },
   grid: { display: "grid", gridTemplateColumns: "56px repeat(7, minmax(120px, 1fr))", background: "#EAE7E0", border: "1px solid #EAE7E0", borderRadius: 14, overflow: "hidden", minWidth: 900 },
-  dayGrid: { display: "grid", gridTemplateColumns: "56px repeat(4, minmax(150px, 1fr))", background: "#EAE7E0", border: "1px solid #EAE7E0", borderRadius: 14, overflow: "hidden", minWidth: 720 },
+  dayGrid: { display: "grid", gridTemplateColumns: `56px repeat(${FIELDS.length}, minmax(150px, 1fr))`, background: "#EAE7E0", border: "1px solid #EAE7E0", borderRadius: 14, overflow: "hidden", minWidth: 720 },
   corner: { background: "#fff", padding: "10px 8px", fontSize: 11, color: "#A8A399", fontWeight: 600, display: "grid", placeItems: "center" },
   dayHead: { background: "#fff", padding: "10px 8px", textAlign: "center", display: "flex", flexDirection: "column", alignItems: "center", gap: 2 },
   dayHeadToday: { background: "#FBF3EC" },
