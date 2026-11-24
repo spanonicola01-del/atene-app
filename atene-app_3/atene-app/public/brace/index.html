@@ -170,6 +170,10 @@ body{margin:0}
 .who li{display:flex;justify-content:space-between;align-items:center;gap:10px;padding:12px 14px;border-radius:12px;background:var(--bg2);border:1px solid var(--line);font-weight:600}
 .who small{color:var(--muted);font-weight:500}
 .wait{text-align:center;color:var(--muted);margin:0;padding:15px 0;font-size:15px}
+.net{position:fixed;left:50%;top:calc(10px + env(safe-area-inset-top,0px));transform:translateX(-50%);z-index:40;max-width:calc(100% - 32px);padding:9px 16px;border-radius:999px;background:#f3c477;color:#2a1219;font:600 14px var(--body);box-shadow:0 10px 30px rgba(0,0,0,.5);text-align:center}
+.resume{text-align:left;border-color:rgba(243,196,119,.6)!important;cursor:pointer}
+.resume b{color:var(--gold)}
+.score span.off{opacity:.55;border-style:dashed}
 /* ---------- v4: chat ---------- */
 .links{flex-wrap:wrap;gap:8px 16px;align-items:center}
 .chat-btn{position:relative;display:inline-flex;align-items:center;gap:6px;padding:8px 14px;border-radius:999px;border:1px solid var(--line);background:var(--bg2);color:var(--ink)!important;text-decoration:none!important;font-weight:600;font-size:14px}
@@ -301,6 +305,7 @@ body::before{content:"";position:fixed;inset:-20%;z-index:0;pointer-events:none;
 <symbol id="flame" viewBox="0 0 24 32"><path d="M12 1c1.6 5.2-3.2 7.6-3.2 12.3 0 2 1.2 3.6 2.7 3.6-1-2.7 1-5.2 3.3-6.8.3 3.5 3.8 5.2 3.8 9.9A8.6 8.6 0 0 1 12 31a8.6 8.6 0 0 1-8.6-8.6C3.4 14 12 10.2 12 1z" fill="url(#fg)"/></symbol>
 </defs></svg>
 <canvas id="embers" aria-hidden="true"></canvas>
+<div id="net" class="net" role="status" hidden></div>
 <div class="app" id="app"></div>
 <div id="chat" class="chat" hidden role="dialog" aria-label="Chat della stanza">
   <div class="chat-inner">
@@ -556,8 +561,9 @@ const store = {
   set(k,v){try{localStorage.setItem("brace:"+k,JSON.stringify(v))}catch(e){}}
 };
 let myId=null;
-try{myId=sessionStorage.getItem("brace:id")}catch(e){}
-if(!myId){myId=Math.random().toString(36).slice(2,10);try{sessionStorage.setItem("brace:id",myId)}catch(e){}}
+try{myId=localStorage.getItem("brace:id")||sessionStorage.getItem("brace:id")}catch(e){}
+if(!myId) myId=Math.random().toString(36).slice(2,10);
+try{localStorage.setItem("brace:id",myId)}catch(e){}
 
 /* U = interfaccia e preferenze; G = partita (solo in locale o sul dispositivo di chi ha creato la stanza) */
 const U = {
@@ -694,76 +700,138 @@ function client(){
 function isHost(){return !!(U.online&&U.online.host)}
 function newCode(){let c="";for(let i=0;i<4;i++)c+=CODE_CHARS[rnd(CODE_CHARS.length)];return c}
 
-function joinRoom(code,host){
+const AWAY_MS=120000;   // dopo 2 minuti offline un giocatore esce dalla partita
+function saveRoom(){
+  const o=U.online; if(!o) return;
+  store.set("room",{code:o.code,host:o.host,name:o.name,joinedAt:o.joinedAt,at:Date.now(),G:o.host&&G?G:null});
+}
+function savedRoom(){
+  const r=store.get("room",null);
+  if(!r||typeof r!=="object"||!/^[A-Z]{4}$/.test(r.code||"")||Date.now()-(+r.at||0)>3*3600e3) return null;
+  return r;
+}
+function joinRoom(code,host,resume){
   const name=U.myName.trim();
   if(!name){U.err="Scrivi il tuo nome per entrare.";render();return}
   store.set("myname",name);
   const c=client();
   if(!c){U.err="Il gioco online non si è caricato. Controlla la connessione e ricarica la pagina.";render();return}
-  U.err="";U.present=[];U.snap=null;G=null;U.lastSeq=-1;U.chat=[];U.unread=0;closeChat();
-  const ch=c.channel("brace-"+code,{config:{broadcast:{self:false},presence:{key:myId}}});
-  U.online={code,host,ch,connected:false,hostSeen:host};
+  U.err="";U.present=[];U.snap=null;G=(resume&&resume.G)||null;U.lastSeq=-1;U.chat=[];U.unread=0;closeChat();
+  U.online={code,host,ch:null,name,joinedAt:(resume&&+resume.joinedAt)||Date.now(),connected:false,everConnected:false,
+    hostSeen:host||!!resume,hostGoneAt:0,hostName:"",away:{},retry:0,reconnectTimer:null};
+  openChannel();
+  const o=U.online;
+  if(!host&&!resume) setTimeout(()=>{ if(U.online===o&&!o.hostSeen){U.err=`Nessuno ha aperto la stanza ${code}. Controlla il codice.`;leaveRoom()} },12000);
+  try{history.replaceState(null,"","#"+code)}catch(e){}
+  U.screen="lobby";saveRoom();render();
+}
+function openChannel(){
+  const o=U.online, c=client(); if(!o||!c) return;
+  if(o.reconnectTimer){clearTimeout(o.reconnectTimer);o.reconnectTimer=null}
+  if(o.ch){const old=o.ch;o.ch=null;try{old.unsubscribe();c.removeChannel&&c.removeChannel(old)}catch(e){}}
+  const ch=c.channel("brace-"+o.code,{config:{broadcast:{self:false},presence:{key:myId}}});
+  o.ch=ch;
   ch.on("broadcast",{event:"state"},({payload})=>{
       if(isHost()||!payload||typeof payload!=="object") return;
-      U.snap=payload;U.online.hostSeen=true;render();
+      U.snap=payload;o.hostSeen=true;o.hostGoneAt=0;render();
     })
     .on("broadcast",{event:"act"},({payload})=>{ if(isHost()&&payload) hostAct(String(payload.from),String(payload.type)) })
     .on("broadcast",{event:"hello"},()=>{ if(isHost()){ broadcastState(); if(U.chat.length) ch.send({type:"broadcast",event:"chatlog",payload:{msgs:U.chat.slice(-50)}}) } })
     .on("broadcast",{event:"chat"},({payload})=>addMsg(payload))
     .on("broadcast",{event:"chatlog"},({payload})=>{ if(isHost()||!payload||!Array.isArray(payload.msgs)) return; payload.msgs.forEach(m=>addMsg(m,true)); U.unread=0; updateBadge() })
-    .on("presence",{event:"sync"},()=>onPresence(ch.presenceState()))
+    .on("presence",{event:"sync"},()=>{ if(U.online===o&&o.ch===ch) onPresence(ch.presenceState()) })
     .subscribe(async status=>{
-      if(!U.online||U.online.ch!==ch) return;
+      if(U.online!==o||o.ch!==ch) return;
       if(status==="SUBSCRIBED"){
-        U.online.connected=true;
-        await ch.track({name:name.slice(0,16),g:U.myGender,host,at:Date.now()});
-        if(!host) ch.send({type:"broadcast",event:"hello",payload:{}});
+        o.connected=true;o.everConnected=true;o.retry=0;
+        if(o.hostGoneAt) o.hostGoneAt=Date.now();
+        o.away={};
+        await ch.track({name:o.name.slice(0,16),g:U.myGender,host:o.host,at:o.joinedAt});
+        if(o.host) broadcastState(); else ch.send({type:"broadcast",event:"hello",payload:{}});
         render();
-      } else if(status==="CHANNEL_ERROR"||status==="TIMED_OUT"){
-        U.err="Connessione non riuscita. Controlla la rete e riprova.";leaveRoom();
+      } else if(status==="CHANNEL_ERROR"||status==="TIMED_OUT"||status==="CLOSED"){
+        o.connected=false;
+        if(!o.everConnected&&o.retry>=2){U.err="Connessione non riuscita. Controlla la rete e riprova.";leaveRoom();return}
+        scheduleReconnect();render();
       }
     });
-  if(!host) setTimeout(()=>{ if(U.online&&U.online.ch===ch&&!U.online.hostSeen){U.err=`Nessuno ha aperto la stanza ${code}. Controlla il codice.`;leaveRoom()} },9000);
-  try{history.replaceState(null,"","#"+code)}catch(e){}
-  U.screen="lobby";render();
+}
+function scheduleReconnect(){
+  const o=U.online; if(!o||o.reconnectTimer) return;
+  o.retry++;
+  o.reconnectTimer=setTimeout(()=>{o.reconnectTimer=null;if(U.online===o&&!o.connected)openChannel()},Math.min(10000,1500*o.retry));
 }
 function leaveRoom(){
   const o=U.online;U.online=null;G=null;U.snap=null;U.present=[];U.chat=[];U.unread=0;closeChat();
-  if(o&&o.ch){try{o.ch.untrack();o.ch.unsubscribe();const c=client();c&&c.removeChannel&&c.removeChannel(o.ch)}catch(e){}}
+  store.set("room",null);
+  if(o){ if(o.reconnectTimer)clearTimeout(o.reconnectTimer);
+    if(o.ch){try{o.ch.untrack();o.ch.unsubscribe();const c=client();c&&c.removeChannel&&c.removeChannel(o.ch)}catch(e){}} }
   try{history.replaceState(null,"",location.pathname)}catch(e){}
   U.screen=U.err?"online":"setup";render();
 }
+function removePlayer(k){
+  const wasTurn=k===G.turn;
+  G.players.splice(k,1);G.done.splice(k,1);G.passes.splice(k,1);
+  if(k<G.turn) G.turn--;
+  if(G.players.length) G.turn%=G.players.length;
+  if(wasTurn){G.flipped=false;if(G.style==="oov")G.cur=null;G.seq++}
+}
 function onPresence(state){
+  const o=U.online; if(!o) return;
   const list=Object.entries(state||{}).map(([id,arr])=>{const m=(arr&&arr[0])||{};return {id,name:String(m.name||"Ospite").slice(0,16),g:m.g==="m"?"m":"f",host:!!m.host,at:+m.at||0}})
     .sort((a,b)=>a.at-b.at);
   U.present=list;
-  if(isHost()){
+  if(o.host){
     if(G){
-      const ids=new Set(list.map(p=>p.id));
-      for(let k=G.players.length-1;k>=0;k--){
-        if(ids.has(G.players[k].id)) continue;
-        const wasTurn=k===G.turn;
-        G.players.splice(k,1);G.done.splice(k,1);G.passes.splice(k,1);
-        if(k<G.turn) G.turn--;
-        if(wasTurn){G.flipped=false;if(G.style==="oov")G.cur=null;G.seq++}
+      const ids=new Set(list.map(p=>p.id));ids.add(myId);
+      const now=Date.now();let added=false;
+      for(const p of G.players){
+        if(ids.has(p.id)){delete o.away[p.id];p.away=false}
+        else{if(!o.away[p.id])o.away[p.id]=now;p.away=true}
       }
-      for(const p of list) if(!G.players.some(x=>x.id===p.id)){G.players.push({id:p.id,name:p.name,g:p.g});G.done.push(0);G.passes.push(0)}
-      if(G.players.length) G.turn%=G.players.length;
-      pickTarget(G);
+      for(const p of list) if(!G.players.some(x=>x.id===p.id)){G.players.push({id:p.id,name:p.name,g:p.g,away:false});G.done.push(0);G.passes.push(0);added=true}
+      if(added) pickTarget(G);
     }
     broadcastState();
-  } else if(U.online){
-    if(list.some(p=>p.host)) U.online.hostSeen=true;
-    else if(U.online.hostSeen){U.err="Chi ha creato la stanza è uscito. La partita è finita.";leaveRoom();return}
+  } else {
+    const h=list.find(p=>p.host);
+    if(h){o.hostSeen=true;o.hostGoneAt=0;o.hostName=h.name}
+    else if(o.hostSeen&&o.connected&&!o.hostGoneAt) o.hostGoneAt=Date.now();
   }
   render();
 }
+/* controlli periodici: chi resta offline troppo a lungo esce */
+setInterval(()=>{
+  const o=U.online; if(!o||!o.connected) return;
+  if(o.host&&G){
+    let changed=false;
+    for(let k=G.players.length-1;k>=0;k--){
+      const p=G.players[k], since=o.away[p.id];
+      if(p.id!==myId&&since&&Date.now()-since>AWAY_MS){removePlayer(k);delete o.away[p.id];changed=true}
+    }
+    if(changed){pickTarget(G);broadcastState();render()}
+  }
+  if(!o.host&&o.hostGoneAt&&Date.now()-o.hostGoneAt>AWAY_MS){
+    U.err=`${o.hostName||"Chi ha creato la stanza"} non è tornato online. La partita è finita.`;leaveRoom();
+  }
+},3000);
+/* tornando nell'app o nella scheda, ricollegati subito */
+function wake(){
+  const o=U.online; if(!o) return;
+  if(!o.connected) openChannel();
+  else if(o.host) broadcastState();
+  else o.ch.send({type:"broadcast",event:"hello",payload:{}});
+}
+document.addEventListener("visibilitychange",()=>{ if(document.visibilityState==="visible") wake() });
+addEventListener("pageshow",e=>{ if(e.persisted) wake() });
+addEventListener("online",wake);
+
 function lobbySnap(){return {started:false,mode:U.mode,level:U.level,style:U.style,players:U.present.map(p=>({id:p.id,name:p.name,g:p.g}))}}
 function broadcastState(){
   if(!isHost()) return;
   const s=G?snapshot(G):lobbySnap();
-  s.hostId=myId;U.snap=s;
-  if(U.online.connected) U.online.ch.send({type:"broadcast",event:"state",payload:s});
+  s.hostId=myId;U.snap=s;saveRoom();
+  if(U.online.connected&&U.online.ch) U.online.ch.send({type:"broadcast",event:"state",payload:s});
 }
 function hostAct(from,type){
   if(!G) return;
@@ -775,9 +843,16 @@ function hostAct(from,type){
 }
 function hostStart(){
   if(!isHost()||U.present.length<2) return;
-  G=makeGame(U.present.map(p=>({id:p.id,name:p.name,g:p.g})));
+  G=makeGame(U.present.map(p=>({id:p.id,name:p.name,g:p.g,away:false})));
   broadcastState();render();
 }
+function netStatus(){
+  const o=U.online; if(!o) return "";
+  if(!o.connected&&o.everConnected) return "Connessione persa. Mi ricollego…";
+  if(!o.host&&o.hostGoneAt) return `${o.hostName||"Chi ha creato la stanza"} è uscito dall'app. Aspettiamo che torni…`;
+  return "";
+}
+function updateNet(){const n=document.getElementById("net");if(!n)return;const t=netStatus();n.textContent=t;n.hidden=!t}
 
 /* azione da questo dispositivo */
 function dispatch(type){
@@ -789,6 +864,7 @@ function dispatch(type){
 /* ---------------- interfaccia ---------------- */
 const $app=document.getElementById("app");
 function render(){
+  updateNet();
   if(U.screen==="setup") return renderSetup();
   if(U.screen==="online") return renderOnline();
   if(U.screen==="lobby") return (U.snap&&U.snap.started)?renderGame(U.snap):renderLobby();
@@ -834,6 +910,7 @@ function renderSetup(){
           <span class="fl">${LEVELS[l].fl}</span><b>${LEVELS[l].name}</b><span>${LEVELS[l].desc}</span></button>`).join("")}
       </div>
     </div>
+    ${(()=>{const r=savedRoom();return r?`<button class="box resume" id="resume"><b>Rientra nella stanza ${esc(r.code)}</b><span class="sub">${r.host?"L'hai creata tu: la partita riprende da dove era.":"Torna nella partita in corso."}</span></button>`:""})()}
     <button class="custom-btn" id="openEd">Le tue carte <span>${U.custom.length?U.custom.length+" create":"Scrivine una"} →</span></button>
     <div class="cta-row">
       <button class="cta" id="start">Gioca su questo telefono</button>
@@ -856,6 +933,7 @@ function renderSetup(){
   document.getElementById("openEd").onclick=()=>{U.editor=true;renderSetup();document.getElementById("edText").focus()};
   document.getElementById("start").onclick=startLocal;
   document.getElementById("goOnline").onclick=()=>{U.err="";U.screen="online";render()};
+  const rs=document.getElementById("resume"); if(rs) rs.onclick=resumeRoom;
   if(U.editor) bindEditor();
 }
 function savePlayers(){store.set("players",U.pc);store.set("group",U.pg);store.set("gc",U.gc);store.set("gg",U.gg)}
@@ -1019,9 +1097,9 @@ function renderGame(s){
       </div>
     </div>
     <div class="score">
-      ${P.map((p,k)=>`<span>${gtag(p)} ${esc(p.name)}: <b>${(s.done||[])[k]||0}</b>${P.length>2?"":" fatte"} · <b>${(s.passes||[])[k]||0}</b> passi</span>`).join("")}
+      ${P.map((p,k)=>`<span class="${p.away?"off":""}">${gtag(p)} ${esc(p.name)}${p.away?" (offline)":""}: <b>${(s.done||[])[k]||0}</b>${P.length>2?"":" fatte"} · <b>${(s.passes||[])[k]||0}</b> passi</span>`).join("")}
     </div>
-    ${!canAct?`<p class="wait">${s.flipped?`${esc(turnP.name)} sta giocando la carta…`:`${esc(turnP.name)} sta scegliendo…`}</p>`
+    ${!canAct&&turnP.away?`<p class="wait">${esc(turnP.name)} è offline. Aspettiamo che torni…</p>`:!canAct?`<p class="wait">${s.flipped?`${esc(turnP.name)} sta giocando la carta…`:`${esc(turnP.name)} sta scegliendo…`}</p>`
     :oov&&!s.flipped?`<div class="actions" style="grid-template-columns:1fr 1fr">
       <button class="btn ghost" id="pickV">Verità</button>
       <button class="btn main" id="pickO">Obbligo</button>
@@ -1128,11 +1206,18 @@ addEventListener("keydown",e=>{if(e.key==="Escape"&&U.chatOpen)closeChat()});
     requestAnimationFrame(tick);
   })();
 })();
-addEventListener("pagehide",()=>{try{U.online&&U.online.ch.untrack()}catch(e){}});
-/* link diretto a una stanza: …/brace/#ABCD */
+function resumeRoom(){
+  const r=savedRoom(); if(!r) return;
+  U.myName=r.name||U.myName;
+  joinRoom(r.code,!!r.host,r);
+}
+/* link diretto a una stanza: …/brace/#ABCD. Se è la stanza in cui eri, rientri da solo */
 (function(){
   const m=/^#([A-Za-z]{4})$/.exec(location.hash||"");
-  if(m){U.codeInput=m[1].toUpperCase();U.screen="online"}
+  if(!m) return;
+  const code=m[1].toUpperCase(), r=savedRoom();
+  if(r&&r.code===code&&r.name){ setTimeout(resumeRoom,0); return }
+  U.codeInput=code;U.screen="online";
 })();
 render();
 </script>
