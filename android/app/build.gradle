@@ -1,0 +1,48 @@
+plugins {
+    id 'com.android.application'
+}
+
+// Una chiave di firma fissa (segreto BRACE_KEYSTORE su GitHub) permette di installare
+// le nuove versioni sopra le vecchie. Senza, l'APK viene firmato con una chiave di prova.
+def releaseKey = file('brace.jks')
+def runNumber = (System.getenv('GITHUB_RUN_NUMBER') ?: '1') as Integer
+
+android {
+    namespace 'it.brace.gioco'
+    compileSdk 34
+
+    defaultConfig {
+        applicationId 'it.brace.gioco'
+        minSdk 26
+        targetSdk 34
+        versionCode runNumber
+        versionName "1.0.${runNumber}"
+    }
+
+    signingConfigs {
+        if (releaseKey.exists()) {
+            release {
+                storeFile releaseKey
+                storePassword System.getenv('BRACE_KEYSTORE_PASSWORD')
+                keyAlias 'brace'
+                keyPassword System.getenv('BRACE_KEYSTORE_PASSWORD')
+            }
+        }
+    }
+
+    buildTypes {
+        release {
+            minifyEnabled false
+            signingConfig releaseKey.exists() ? signingConfigs.release : signingConfigs.debug
+        }
+    }
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+    }
+
+    lint {
+        checkReleaseBuilds false
+    }
+}

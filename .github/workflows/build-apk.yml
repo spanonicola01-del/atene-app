@@ -1,0 +1,60 @@
+# Costruisce l'APK di Brace (cartella android/). Su main lo pubblica anche come Release,
+# scaricabile da: https://github.com/<proprietario>/<repo>/releases/latest/download/Brace.apk
+name: Costruisci APK Brace
+
+on:
+  push:
+    paths:
+      - "android/**"
+      - ".github/workflows/build-apk.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  apk:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: android
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: "8.9"
+      - name: Chiave di firma (se configurata)
+        env:
+          BRACE_KEYSTORE: ${{ secrets.BRACE_KEYSTORE }}
+        run: |
+          if [ -n "$BRACE_KEYSTORE" ]; then
+            echo "$BRACE_KEYSTORE" | base64 -d > app/brace.jks
+            echo "Firma con la chiave di Brace"
+          else
+            echo "::warning::Nessuna chiave BRACE_KEYSTORE: APK firmato con una chiave di prova"
+          fi
+      - name: Costruisci
+        env:
+          BRACE_KEYSTORE_PASSWORD: ${{ secrets.BRACE_KEYSTORE_PASSWORD }}
+        run: gradle assembleRelease --no-daemon --stacktrace
+      - run: cp app/build/outputs/apk/release/app-release.apk ../Brace.apk
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Brace-apk
+          path: Brace.apk
+      - name: Pubblica come Release
+        if: github.ref == 'refs/heads/main'
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: brace-apk-${{ github.run_number }}
+          name: Brace per Android (versione ${{ github.run_number }})
+          files: Brace.apk
+          make_latest: true
+          body: |
+            Scarica **Brace.apk** qui sotto e aprilo sul telefono Android.
+            Se Android lo chiede, consenti l'installazione di app da questa fonte.
+            Il gioco si aggiorna da solo: questo file va reinstallato solo quando cambiano icona o nome dell'app.
