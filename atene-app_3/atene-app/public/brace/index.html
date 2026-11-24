@@ -173,6 +173,7 @@ body{margin:0}
 .net{position:fixed;left:50%;top:calc(10px + env(safe-area-inset-top,0px));transform:translateX(-50%);z-index:40;max-width:calc(100% - 32px);padding:9px 16px;border-radius:999px;background:#f3c477;color:#2a1219;font:600 14px var(--body);box-shadow:0 10px 30px rgba(0,0,0,.5);text-align:center}
 .resume{text-align:left;border-color:rgba(243,196,119,.6)!important;cursor:pointer}
 .resume b{color:var(--gold)}
+.wa{display:block;text-align:center;text-decoration:none;color:var(--ink)}
 .score span.off{opacity:.55;border-style:dashed}
 /* ---------- v4: chat ---------- */
 .links{flex-wrap:wrap;gap:8px 16px;align-items:center}
@@ -700,7 +701,7 @@ function client(){
 function isHost(){return !!(U.online&&U.online.host)}
 function newCode(){let c="";for(let i=0;i<4;i++)c+=CODE_CHARS[rnd(CODE_CHARS.length)];return c}
 
-const AWAY_MS=120000;   // dopo 2 minuti offline un giocatore esce dalla partita
+const AWAY_MS=300000;   // dopo 5 minuti offline un giocatore esce dalla partita
 function saveRoom(){
   const o=U.online; if(!o) return;
   store.set("room",{code:o.code,host:o.host,name:o.name,joinedAt:o.joinedAt,at:Date.now(),G:o.host&&G?G:null});
@@ -721,7 +722,7 @@ function joinRoom(code,host,resume){
     hostSeen:host||!!resume,hostGoneAt:0,hostName:"",away:{},retry:0,reconnectTimer:null};
   openChannel();
   const o=U.online;
-  if(!host&&!resume) setTimeout(()=>{ if(U.online===o&&!o.hostSeen){U.err=`Nessuno ha aperto la stanza ${code}. Controlla il codice.`;leaveRoom()} },12000);
+  if(!host&&!resume) setTimeout(()=>{ if(U.online===o&&!o.hostSeen){o.slowHost=true;render()} },15000);
   try{history.replaceState(null,"","#"+code)}catch(e){}
   U.screen="lobby";saveRoom();render();
 }
@@ -751,7 +752,6 @@ function openChannel(){
         render();
       } else if(status==="CHANNEL_ERROR"||status==="TIMED_OUT"||status==="CLOSED"){
         o.connected=false;
-        if(!o.everConnected&&o.retry>=2){U.err="Connessione non riuscita. Controlla la rete e riprova.";leaveRoom();return}
         scheduleReconnect();render();
       }
     });
@@ -811,9 +811,6 @@ setInterval(()=>{
     }
     if(changed){pickTarget(G);broadcastState();render()}
   }
-  if(!o.host&&o.hostGoneAt&&Date.now()-o.hostGoneAt>AWAY_MS){
-    U.err=`${o.hostName||"Chi ha creato la stanza"} non è tornato online. La partita è finita.`;leaveRoom();
-  }
 },3000);
 /* tornando nell'app o nella scheda, ricollegati subito */
 function wake(){
@@ -848,7 +845,7 @@ function hostStart(){
 }
 function netStatus(){
   const o=U.online; if(!o) return "";
-  if(!o.connected&&o.everConnected) return "Connessione persa. Mi ricollego…";
+  if(!o.connected) return o.everConnected?"Connessione persa. Mi ricollego…":"Mi collego alla stanza…";
   if(!o.host&&o.hostGoneAt) return `${o.hostName||"Chi ha creato la stanza"} è uscito dall'app. Aspettiamo che torni…`;
   return "";
 }
@@ -1034,14 +1031,16 @@ function renderLobby(){
       <input id="link" readonly value="${esc(link)}" aria-label="Link della stanza">
       <button class="btn ghost" id="copy">Copia link</button>
     </div>
-    <p class="sub">Manda il link o il codice agli altri giocatori.</p>
+    <a class="btn ghost wa" href="https://wa.me/?text=${encodeURIComponent("Giochiamo a Brace? Entra nella stanza "+o.code+": "+link)}" target="_blank" rel="noopener">Invia il link su WhatsApp</a>
+    <p class="sub">Manda il link o il codice agli altri. Poi torna qui: la stanza resta aperta anche mentre sei su WhatsApp.</p>
     <div>
       <div class="label" style="margin-bottom:8px">In stanza (${people.length})</div>
       <ul class="who">${people.map(p=>`<li><span>${av(p,true)}${esc(p.name)} ${gtag(p)}</span><small>${p.id===myId?"tu":""}${p.host?(p.id===myId?" · ":"")+"crea la partita":""}</small></li>`).join("")||`<li><span class="sub">${o.connected?"Collegamento in corso…":"Connessione…"}</span></li>`}</ul>
     </div>
     ${s?`<p class="sub">${esc(s.mode==="coppia"?"In coppia":"Con gli amici")} · ${esc((LEVELS[s.level]||LEVELS[2]).name)} · ${s.style==="oov"?"Obbligo o verità":"Mazzo misto"}</p>`:""}
     ${isHost()?`<button class="cta" id="go" ${people.length<2?"disabled":""}>${people.length<2?"Aspetta almeno un altro giocatore":"Inizia la partita"}</button>`
-      :`<p class="wait">Aspetta che ${esc(hostName)} inizi la partita.</p>`}
+      :o.hostSeen?`<p class="wait">Aspetta che ${esc(hostName)} inizi la partita.</p>`
+      :`<p class="wait">Aspettiamo che chi ha creato la stanza ${esc(o.code)} sia online…${o.slowHost?`<br><small>Se è su WhatsApp, tornerà a breve. Se non arriva nessuno, controlla che il codice sia giusto.</small>`:""}</p>`}
     <button class="btn ghost" id="openChat">${chatLabel()}</button>
     <button class="btn ghost" id="leave">Esci dalla stanza</button>
   </section>`;
