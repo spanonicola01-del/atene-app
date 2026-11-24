@@ -170,10 +170,46 @@ body{margin:0}
 .who li{display:flex;justify-content:space-between;align-items:center;gap:10px;padding:12px 14px;border-radius:12px;background:var(--bg2);border:1px solid var(--line);font-weight:600}
 .who small{color:var(--muted);font-weight:500}
 .wait{text-align:center;color:var(--muted);margin:0;padding:15px 0;font-size:15px}
+/* ---------- v4: chat ---------- */
+.links{flex-wrap:wrap;gap:8px 16px;align-items:center}
+.chat-btn{position:relative;display:inline-flex;align-items:center;gap:6px;padding:8px 14px;border-radius:999px;border:1px solid var(--line);background:var(--bg2);color:var(--ink)!important;text-decoration:none!important;font-weight:600;font-size:14px}
+.chat-btn .badge{min-width:20px;height:20px;padding:0 6px;border-radius:999px;background:var(--gold);color:var(--bg);font-size:12px;font-weight:800;display:inline-grid;place-items:center}
+.chat{position:fixed;left:0;right:0;bottom:0;z-index:30;height:min(72vh,580px);display:flex;flex-direction:column;gap:10px;
+  background:var(--bg2);border-top:1px solid var(--line);border-radius:22px 22px 0 0;box-shadow:0 -20px 60px rgba(0,0,0,.55);
+  padding-top:14px;padding-bottom:calc(12px + env(safe-area-inset-bottom,0px));
+  padding-left:max(16px, env(safe-area-inset-left, 0px));padding-right:max(16px, env(safe-area-inset-right, 0px))}
+.chat-inner{max-width:520px;width:100%;margin:0 auto;display:flex;flex-direction:column;gap:10px;flex:1;min-height:0}
+.chat-head{display:flex;align-items:center;gap:10px}
+.chat-head b{font-family:var(--display);font-size:20px}
+.chat-head span{color:var(--muted);font-size:13px;flex:1}
+.chat-head button{width:40px;height:40px;border-radius:12px;border:1px solid var(--line);font-size:22px;color:var(--muted)}
+.chat-list{flex:1;min-height:0;overflow-y:auto;list-style:none;margin:0;padding:4px 2px;display:flex;flex-direction:column;gap:8px}
+.chat-list li{max-width:80%;display:flex;flex-direction:column;gap:2px;align-self:flex-start}
+.chat-list li small{color:var(--muted);font-size:12px;padding:0 4px}
+.chat-list li p{margin:0;padding:9px 13px;border-radius:16px 16px 16px 4px;background:var(--bg);border:1px solid var(--line);line-height:1.4;overflow-wrap:anywhere;font-size:15px}
+.chat-list li.me{align-self:flex-end;align-items:flex-end}
+.chat-list li.me p{background:linear-gradient(90deg,var(--ember),var(--rose));border-color:transparent;color:#fff;border-radius:16px 16px 4px 16px}
+.chat-list li.big p{font-size:30px;background:none;border:0;padding:0 4px}
+.chat-empty{color:var(--muted);font-size:14px;text-align:center;margin:auto 0}
+.chat-quick{display:flex;gap:8px;overflow-x:auto}
+.chat-quick button{flex:none;padding:6px 12px;border-radius:999px;border:1px solid var(--line);font-size:20px;background:var(--bg)}
+.chat-form{display:grid;grid-template-columns:1fr auto;gap:8px}
+.chat-form input{min-width:0;width:100%;background:var(--bg);border:1px solid var(--line);border-radius:999px;padding:12px 16px;color:var(--ink);font:500 16px var(--body)}
+.chat-form .btn{padding:12px 18px;font-size:16px}
 </style>
 </head>
 <body>
 <div class="app" id="app"></div>
+<div id="chat" class="chat" hidden role="dialog" aria-label="Chat della stanza">
+  <div class="chat-inner">
+    <div class="chat-head"><b>Chat</b><span id="chatRoom"></span><button id="chatClose" aria-label="Chiudi la chat">×</button></div>
+    <ol id="chatList" class="chat-list" aria-live="polite"></ol>
+    <div class="chat-quick" role="group" aria-label="Reazioni veloci">
+      <button data-q="🔥">🔥</button><button data-q="😏">😏</button><button data-q="😂">😂</button><button data-q="❤️">❤️</button><button data-q="😳">😳</button><button data-q="👀">👀</button><button data-q="💋">💋</button>
+    </div>
+    <form id="chatForm" class="chat-form"><input id="chatInput" maxlength="300" placeholder="Scrivi un messaggio…" autocomplete="off" aria-label="Messaggio"><button class="btn main" type="submit">Invia</button></form>
+  </div>
+</div>
 <script src="supabase.js"></script>
 <script>
 const LEVELS = {
@@ -429,7 +465,7 @@ const U = {
   custom:store.get("custom",[]),
   myName:store.get("myname",""),
   editor:false, draft:{text:"",kind:"domanda",level:2},
-  codeInput:"", err:"", online:null, present:[], snap:null,
+  codeInput:"", err:"", online:null, present:[], snap:null, chat:[], unread:0, chatOpen:false,
   lastSeq:-1, lastFlipped:false
 };
 let G=null;
@@ -538,7 +574,7 @@ function joinRoom(code,host){
   store.set("myname",name);
   const c=client();
   if(!c){U.err="Il gioco online non si è caricato. Controlla la connessione e ricarica la pagina.";render();return}
-  U.err="";U.present=[];U.snap=null;G=null;U.lastSeq=-1;
+  U.err="";U.present=[];U.snap=null;G=null;U.lastSeq=-1;U.chat=[];U.unread=0;closeChat();
   const ch=c.channel("brace-"+code,{config:{broadcast:{self:false},presence:{key:myId}}});
   U.online={code,host,ch,connected:false,hostSeen:host};
   ch.on("broadcast",{event:"state"},({payload})=>{
@@ -546,7 +582,9 @@ function joinRoom(code,host){
       U.snap=payload;U.online.hostSeen=true;render();
     })
     .on("broadcast",{event:"act"},({payload})=>{ if(isHost()&&payload) hostAct(String(payload.from),String(payload.type)) })
-    .on("broadcast",{event:"hello"},()=>{ if(isHost()) broadcastState() })
+    .on("broadcast",{event:"hello"},()=>{ if(isHost()){ broadcastState(); if(U.chat.length) ch.send({type:"broadcast",event:"chatlog",payload:{msgs:U.chat.slice(-50)}}) } })
+    .on("broadcast",{event:"chat"},({payload})=>addMsg(payload))
+    .on("broadcast",{event:"chatlog"},({payload})=>{ if(isHost()||!payload||!Array.isArray(payload.msgs)) return; payload.msgs.forEach(m=>addMsg(m,true)); U.unread=0; updateBadge() })
     .on("presence",{event:"sync"},()=>onPresence(ch.presenceState()))
     .subscribe(async status=>{
       if(!U.online||U.online.ch!==ch) return;
@@ -564,7 +602,7 @@ function joinRoom(code,host){
   U.screen="lobby";render();
 }
 function leaveRoom(){
-  const o=U.online;U.online=null;G=null;U.snap=null;U.present=[];
+  const o=U.online;U.online=null;G=null;U.snap=null;U.present=[];U.chat=[];U.unread=0;closeChat();
   if(o&&o.ch){try{o.ch.untrack();o.ch.unsubscribe();const c=client();c&&c.removeChannel&&c.removeChannel(o.ch)}catch(e){}}
   try{history.replaceState(null,"",location.pathname)}catch(e){}
   U.screen=U.err?"online":"setup";render();
@@ -788,8 +826,10 @@ function renderLobby(){
     ${s?`<p class="sub">${esc(s.mode==="coppia"?"In coppia":"Con gli amici")} · ${esc((LEVELS[s.level]||LEVELS[2]).name)} · ${s.style==="oov"?"Obbligo o verità":"Mazzo misto"}</p>`:""}
     ${isHost()?`<button class="cta" id="go" ${people.length<2?"disabled":""}>${people.length<2?"Aspetta almeno un altro giocatore":"Inizia la partita"}</button>`
       :`<p class="wait">Aspetta che ${esc(hostName)} inizi la partita.</p>`}
+    <button class="btn ghost" id="openChat">${chatLabel()}</button>
     <button class="btn ghost" id="leave">Esci dalla stanza</button>
   </section>`;
+  document.getElementById("openChat").onclick=openChat;
   document.getElementById("copy").onclick=async()=>{
     const b=document.getElementById("copy");
     try{await navigator.clipboard.writeText(link);b.textContent="Copiato"}catch(e){const i=document.getElementById("link");i.select();b.textContent="Selezionato"}
@@ -852,7 +892,7 @@ function renderGame(s){
       <button class="btn main" id="next">${s.flipped?"Fatto, prossima":"Gira la carta"}</button>
     </div>`}
     <div class="links">
-      ${online?`<button id="leave">Esci dalla stanza</button>${isHost()?`<button id="shuffle">Rimescola</button>`:""}`
+      ${online?`<button id="leave">Esci dalla stanza</button><button class="chat-btn" id="openChat">${chatLabel()}</button>${isHost()?`<button id="shuffle">Rimescola</button>`:""}`
         :`<button id="restart">Nuova partita</button><button id="shuffle">Rimescola</button>`}
     </div>
   </section>
@@ -874,6 +914,7 @@ function renderGame(s){
   on("lvl",()=>dispatch("level"));
   on("restart",()=>{U.screen="setup";G=null;render()});
   on("leave",()=>{U.err="";leaveRoom()});
+  on("openChat",openChat);
   on("ovOk",()=>dispatch("ok"));
 }
 
@@ -884,6 +925,50 @@ function overlayHTML(o,canAct){
     ${canAct?`<button class="cta" id="ovOk">${esc(o.btn)}</button>`:`<p class="sub">Aspettate che si continui.</p>`}</div></div>`;
 }
 
+/* ---------------- chat della stanza ---------------- */
+const $chat=document.getElementById("chat"), $list=document.getElementById("chatList"), $input=document.getElementById("chatInput");
+function chatLabel(){return `Chat${U.unread?` <span class="badge">${U.unread>99?"99+":U.unread}</span>`:""}`}
+function updateBadge(){const b=document.getElementById("openChat");if(b)b.innerHTML=chatLabel()}
+function msgEl(m){
+  const li=document.createElement("li");
+  if(m.from===myId) li.className="me";
+  if(/^\p{Extended_Pictographic}(️)?$/u.test(m.text)) li.classList.add("big");
+  const who=document.createElement("small");who.textContent=m.from===myId?"Tu":m.name;
+  const p=document.createElement("p");p.textContent=m.text;
+  li.append(who,p);return li;
+}
+function renderChatList(){
+  $list.replaceChildren();
+  if(!U.chat.length){const e=document.createElement("li");e.className="chat-empty";e.textContent="Ancora nessun messaggio. Rompete il ghiaccio.";$list.append(e)}
+  U.chat.forEach(m=>$list.append(msgEl(m)));
+  $list.scrollTop=$list.scrollHeight;
+}
+function addMsg(raw,quiet){
+  if(!raw||typeof raw!=="object"||!U.online) return;
+  const m={id:String(raw.id||"").slice(0,20),from:String(raw.from||"").slice(0,20),name:String(raw.name||"Ospite").slice(0,16),text:String(raw.text||"").trim().slice(0,300),ts:+raw.ts||Date.now()};
+  if(!m.id||!m.text||U.chat.some(x=>x.id===m.id)) return;
+  U.chat.push(m);if(U.chat.length>200)U.chat.shift();
+  if(U.chatOpen){ if(U.chat.length===1)renderChatList(); else {$list.append(msgEl(m));$list.scrollTop=$list.scrollHeight} }
+  else if(!quiet&&m.from!==myId){U.unread++;updateBadge()}
+}
+function sendChat(text){
+  text=String(text||"").trim().slice(0,300);
+  if(!text||!U.online) return;
+  const m={id:Math.random().toString(36).slice(2,12),from:myId,name:U.myName.trim().slice(0,16),text,ts:Date.now()};
+  addMsg(m);
+  if(U.online.connected) U.online.ch.send({type:"broadcast",event:"chat",payload:m});
+}
+function openChat(){
+  if(!U.online) return;
+  U.chatOpen=true;U.unread=0;updateBadge();
+  document.getElementById("chatRoom").textContent="Stanza "+U.online.code;
+  $chat.hidden=false;renderChatList();$input.focus();
+}
+function closeChat(){U.chatOpen=false;if($chat)$chat.hidden=true}
+document.getElementById("chatClose").onclick=()=>{closeChat();const b=document.getElementById("openChat");b&&b.focus()};
+document.getElementById("chatForm").onsubmit=e=>{e.preventDefault();sendChat($input.value);$input.value="";$input.focus()};
+document.querySelectorAll("[data-q]").forEach(b=>b.onclick=()=>sendChat(b.dataset.q));
+addEventListener("keydown",e=>{if(e.key==="Escape"&&U.chatOpen)closeChat()});
 addEventListener("pagehide",()=>{try{U.online&&U.online.ch.untrack()}catch(e){}});
 /* link diretto a una stanza: …/brace/#ABCD */
 (function(){
