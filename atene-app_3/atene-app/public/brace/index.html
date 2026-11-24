@@ -196,9 +196,111 @@ body{margin:0}
 .chat-form{display:grid;grid-template-columns:1fr auto;gap:8px}
 .chat-form input{min-width:0;width:100%;background:var(--bg);border:1px solid var(--line);border-radius:999px;padding:12px 16px;color:var(--ink);font:500 16px var(--body)}
 .chat-form .btn{padding:12px 18px;font-size:16px}
+
+/* ---------- v5: grafica e Lei/Lui ---------- */
+:root{--lei:#ff5c9a;--lui:#4fa8ff;--glass:rgba(255,255,255,.06);--glass2:rgba(255,255,255,.1)}
+body{background:#14090f}
+body::before{content:"";position:fixed;inset:-20%;z-index:0;pointer-events:none;
+  background:radial-gradient(40% 35% at 20% 25%,rgba(255,92,154,.28),transparent 70%),
+             radial-gradient(45% 40% at 85% 70%,rgba(255,106,61,.26),transparent 70%),
+             radial-gradient(50% 40% at 50% 110%,rgba(140,40,90,.5),transparent 70%);
+  animation:drift 18s ease-in-out infinite alternate}
+@keyframes drift{to{transform:translate3d(4%,-3%,0) rotate(6deg) scale(1.06)}}
+#embers{position:fixed;inset:0;width:100%;height:100%;z-index:0;pointer-events:none}
+.app{position:relative;z-index:1}
+.brand{align-items:center;gap:12px}
+.brand .logo{width:46px;height:60px;flex:none;filter:drop-shadow(0 0 16px rgba(255,106,61,.75));animation:flicker 3s ease-in-out infinite}
+@keyframes flicker{0%,100%{transform:scale(1) rotate(-2deg)}50%{transform:scale(1.06,1.1) rotate(2deg)}}
+.brand h1{background:linear-gradient(100deg,#ffd38a 0%,#ff8a4c 30%,#ff4f8b 55%,#ffd38a 80%);background-size:220% 100%;-webkit-background-clip:text;background-clip:text;
+  animation:shine 6s linear infinite;filter:drop-shadow(0 4px 24px rgba(255,79,139,.35))}
+@keyframes shine{to{background-position:-220% 0}}
+.brand .ember{display:none}
+.lede{color:#d9c3c9}
+.seg{background:var(--glass);backdrop-filter:blur(10px);border-color:var(--glass2)}
+.seg button[aria-pressed="true"]{background:linear-gradient(90deg,var(--ember),var(--rose));color:#fff;box-shadow:0 6px 18px -6px rgba(232,71,107,.8)}
+.lvl{background:var(--glass);backdrop-filter:blur(10px);border-color:var(--glass2);position:relative;overflow:hidden}
+.lvl .fl{display:flex;gap:2px;min-width:64px}
+.lvl[aria-pressed="true"]{border-color:transparent;background:linear-gradient(100deg,rgba(255,106,61,.32),rgba(255,79,139,.22));box-shadow:0 0 0 2px var(--ember) inset,0 10px 30px -12px rgba(255,79,139,.8)}
+.flames{display:inline-flex;gap:1px;vertical-align:-3px}
+.flames svg{width:15px;height:20px}
+.lvl .flames svg{width:20px;height:26px}
+.flames .off{opacity:.25}
+.custom-btn{background:rgba(243,196,119,.06)}
+.cta,.btn.main{background:linear-gradient(100deg,#ff8a4c,#ff4f8b 60%,#d63384);background-size:160% 100%;box-shadow:0 12px 34px -10px rgba(255,79,139,.85),inset 0 1px 0 rgba(255,255,255,.25);transition:background-position .4s,transform .1s}
+.cta:hover,.btn.main:hover{background-position:100% 0}
+.btn.ghost,.chip,.chat-btn{background:var(--glass);backdrop-filter:blur(10px);border-color:var(--glass2)}
+.field input,.code-in,.share input{background:rgba(0,0,0,.25);border-color:var(--glass2)}
+.field input:focus,.code-in:focus{border-color:var(--rose);box-shadow:0 0 0 3px rgba(255,79,139,.25);outline:none}
+/* giocatori con Lei / Lui */
+.players{display:flex;flex-direction:column;gap:10px}
+.pcard{display:flex;align-items:center;gap:10px;padding:8px;border-radius:18px;background:var(--glass);border:1px solid var(--glass2);backdrop-filter:blur(10px)}
+.pcard.f{box-shadow:inset 4px 0 0 var(--lei)}
+.pcard.m{box-shadow:inset 4px 0 0 var(--lui)}
+.pcard .field{flex:1}
+.pcard input{background:transparent!important;border:0!important;padding:10px 4px!important;font-weight:600!important;font-size:17px!important;box-shadow:none!important}
+.av{width:42px;height:42px;flex:none;border-radius:50%;display:grid;place-items:center;font:800 18px var(--display);color:#fff}
+.av.f{background:linear-gradient(140deg,#ff8ab8,var(--lei));box-shadow:0 0 18px -4px var(--lei)}
+.av.m{background:linear-gradient(140deg,#8cc8ff,var(--lui));box-shadow:0 0 18px -4px var(--lui)}
+.av.sm{width:26px;height:26px;font-size:12px;box-shadow:none}
+.gsw{display:grid;grid-template-columns:1fr 1fr;flex:none;padding:3px;border-radius:999px;background:rgba(0,0,0,.3);border:1px solid var(--glass2)}
+.gsw button{padding:7px 10px;border-radius:999px;font-size:13px;font-weight:700;color:var(--muted);white-space:nowrap}
+.gsw button.f[aria-pressed="true"]{background:var(--lei);color:#fff}
+.gsw button.m[aria-pressed="true"]{background:var(--lui);color:#fff}
+.pcard .x{width:36px;height:36px;border-radius:50%;border-color:var(--glass2)}
+.hint-g{font-size:13px;color:var(--muted);margin:6px 0 0}
+.gsym.f{color:var(--lei)}.gsym.m{color:var(--lui)}
+/* partita */
+.turn{flex-direction:row;justify-content:center;align-items:center;gap:12px}
+.turn .who-turn{display:flex;flex-direction:column;align-items:flex-start;gap:0}
+.turn .to{font-size:14px;color:#d9c3c9;font-weight:500}
+.turn .to b{font-weight:700}
+.stack{background:linear-gradient(160deg,#5a1f38,#2b1020);border-color:var(--glass2)}
+.back{background:
+   radial-gradient(60% 45% at 50% 42%,rgba(255,170,90,.45),transparent 70%),
+   repeating-linear-gradient(135deg,rgba(255,255,255,.045) 0 2px,transparent 2px 16px),
+   linear-gradient(165deg,#ff4f8b 0%,#b0234f 45%,#4a0f2a 100%);
+  border:0;box-shadow:inset 0 0 0 8px #1f0a14,inset 0 0 0 10px #f3c477,0 30px 60px -20px rgba(0,0,0,.8)}
+.back::after{content:"";position:absolute;inset:0;background:linear-gradient(115deg,transparent 35%,rgba(255,255,255,.18) 50%,transparent 65%);transform:translateX(-120%);animation:sweep 4.5s ease-in-out infinite}
+@keyframes sweep{60%,100%{transform:translateX(120%)}}
+.back .seal{width:52%;border:2px solid rgba(243,196,119,.8);background:rgba(31,10,20,.35);backdrop-filter:blur(2px);display:flex;flex-direction:column;gap:4px;box-shadow:0 0 40px rgba(255,138,76,.35)}
+.back .seal svg{width:38%;height:auto;filter:drop-shadow(0 0 10px rgba(255,170,90,.9))}
+.back .seal span{font-size:26px;color:#ffe4b8}
+.back .hint{color:#ffe4b8;font-weight:600}
+.front{padding:0;gap:0;background:#fff8f3}
+.front .band{padding:20px 22px 16px;display:flex;justify-content:space-between;align-items:center;color:#fff}
+.front .band.domanda{background:linear-gradient(120deg,#c2185b,#7b1f4b)}
+.front .band.sfida{background:linear-gradient(120deg,#ff6a3d,#e8336b)}
+.front .band.confessione{background:linear-gradient(120deg,#8e44ad,#4a1f6e)}
+.front .band.scelta{background:linear-gradient(120deg,#f39c12,#c0571b)}
+.front .band .tag{background:rgba(255,255,255,.22)!important;padding:6px 12px;border-radius:999px;font-size:12px;letter-spacing:.16em;text-transform:uppercase;font-weight:700}
+.front .band .flames svg{filter:brightness(1.6) saturate(.6)}
+.front .body{flex:1;display:flex;flex-direction:column;padding:16px 24px 22px;position:relative}
+.front .body::before{content:"“";position:absolute;top:-6px;left:16px;font:800 90px/1 var(--display);color:rgba(194,24,91,.12)}
+.front p{position:relative}
+.front p em{color:#c2185b;background:linear-gradient(transparent 62%,rgba(255,92,154,.22) 62%)}
+.front p em.m{color:#1f6fd1;background:linear-gradient(transparent 62%,rgba(79,168,255,.22) 62%)}
+.front .foot{align-items:center;gap:8px;color:#8a5a66}
+.front .foot .pair{display:inline-flex;align-items:center;gap:6px;font-weight:600}
+.front .mine{color:#fff;background:rgba(0,0,0,.2);padding:4px 8px;border-radius:999px}
+.score{gap:6px 10px}
+.score{font-size:12px;display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr))}
+.score span{justify-content:center;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0}
+.score span{display:inline-flex;align-items:center;gap:5px;padding:4px 10px;border-radius:999px;background:var(--glass);border:1px solid var(--glass2)}
+.who li{background:var(--glass);border-color:var(--glass2)}
+.who li span{display:inline-flex;align-items:center;gap:10px}
+.room-code{background:linear-gradient(100deg,#ffd38a,#ff8a4c 50%,#ff4f8b);-webkit-background-clip:text;background-clip:text;color:transparent}
+.box{background:var(--glass);border-color:var(--glass2);backdrop-filter:blur(10px)}
+.sheet{background:linear-gradient(170deg,#2f1422,#1a0b13);border-color:var(--glass2);box-shadow:0 30px 80px -20px rgba(255,79,139,.4)}
+.chat{background:linear-gradient(175deg,#2a1220,#170910)}
+@media (prefers-reduced-motion:reduce){body::before,.brand .logo,.brand h1,.back::after{animation:none}}
 </style>
 </head>
 <body>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true"><defs>
+<linearGradient id="fg" x1="0" y1="1" x2="0" y2="0"><stop offset="0" stop-color="#ff4f8b"/><stop offset=".55" stop-color="#ff8a4c"/><stop offset="1" stop-color="#ffd38a"/></linearGradient>
+<symbol id="flame" viewBox="0 0 24 32"><path d="M12 1c1.6 5.2-3.2 7.6-3.2 12.3 0 2 1.2 3.6 2.7 3.6-1-2.7 1-5.2 3.3-6.8.3 3.5 3.8 5.2 3.8 9.9A8.6 8.6 0 0 1 12 31a8.6 8.6 0 0 1-8.6-8.6C3.4 14 12 10.2 12 1z" fill="url(#fg)"/></symbol>
+</defs></svg>
+<canvas id="embers" aria-hidden="true"></canvas>
 <div class="app" id="app"></div>
 <div id="chat" class="chat" hidden role="dialog" aria-label="Chat della stanza">
   <div class="chat-inner">
@@ -218,6 +320,9 @@ const LEVELS = {
   3:{name:"Brace",fl:"●●●",desc:"Senza filtri. Solo per i più audaci"},
   4:{name:"Crescendo",fl:"●→●●●",desc:"Si parte dolci e si finisce bollenti"}
 };
+const flameSvg=cls=>`<svg class="${cls||""}"><use href="#flame"/></svg>`;
+function heat(l){return `<span class="flames" aria-label="${["","1 fiamma","2 fiamme","3 fiamme","da 1 a 3 fiamme"][l]}">${l===4?flameSvg("off")+flameSvg()+flameSvg():Array.from({length:l},()=>flameSvg()).join("")}</span>`}
+for(const k in LEVELS) LEVELS[k].fl=heat(+k);
 // {B} = la persona a cui è rivolta la carta (il partner, o un altro giocatore nel gruppo)
 const COPPIA = {
 1:[
@@ -460,6 +565,9 @@ const U = {
   mode:store.get("mode","coppia"),
   pc:store.get("players",["Giulia","Marco"]),
   pg:store.get("group",["Giulia","Marco","Sara","Luca"]),
+  gc:store.get("gc",["f","m"]),
+  gg:store.get("gg",["f","m","f","m"]),
+  myGender:store.get("mygender","f"),
   level:store.get("level",2),
   style:store.get("style","misto"),
   custom:store.get("custom",[]),
@@ -474,6 +582,24 @@ function shuffle(a){a=a.slice();for(let i=a.length-1;i>0;i--){const j=Math.floor
 function rnd(n){return Math.floor(Math.random()*n)}
 function esc(s){return String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]))}
 const localPlayers=()=>U.mode==="coppia"?U.pc:U.pg;
+const localGenders=()=>U.mode==="coppia"?U.gc:U.gg;
+const GSYM={f:"♀",m:"♂"}, GNAME={f:"Lei",m:"Lui"};
+function av(p,sm){const g=p&&p.g==="m"?"m":"f";const ini=(String(p&&p.name||"?").trim()[0]||"?").toUpperCase();return `<span class="av ${g}${sm?" sm":""}" aria-label="${GNAME[g]}">${esc(ini)}</span>`}
+function gtag(p){const g=p&&p.g==="m"?"m":"f";return `<span class="gsym ${g}" aria-label="${GNAME[g]}">${GSYM[g]}</span>`}
+/* accorda le parole con il genere: "toccato/a" segue chi gioca, "lui/lei" e "bacialo/a" seguono a chi è rivolta la carta */
+const GB={"fagli/le":["fagli","falle"],"dagli/le":["dagli","dalle"],"fargli/le":["fargli","farle"],"gli/le":["gli","le"],"lui/lei":["lui","lei"],"lo/la":["lo","la"]};
+function gender(t,A,B){
+  return String(t).replace(/([A-Za-zàèéìòù]*)\/(lei|le|la|a)\b/g,(m,w,suf)=>{
+    const key=(w+"/"+suf).toLowerCase();
+    if(GB[key]) return B&&B.g?GB[key][B.g==="f"?1:0]:m;
+    if(suf==="a"&&/o$/.test(w)){
+      const p=(/lo$/.test(w)||w==="abbracciato")?B:A;
+      if(!p||!p.g) return m;
+      return p.g==="f"?w.slice(0,-1)+"a":w;
+    }
+    return m;
+  });
+}
 
 /* ---------------- motore di gioco ---------------- */
 function poolFor(g,l){
@@ -590,7 +716,7 @@ function joinRoom(code,host){
       if(!U.online||U.online.ch!==ch) return;
       if(status==="SUBSCRIBED"){
         U.online.connected=true;
-        await ch.track({name:name.slice(0,16),host,at:Date.now()});
+        await ch.track({name:name.slice(0,16),g:U.myGender,host,at:Date.now()});
         if(!host) ch.send({type:"broadcast",event:"hello",payload:{}});
         render();
       } else if(status==="CHANNEL_ERROR"||status==="TIMED_OUT"){
@@ -608,7 +734,7 @@ function leaveRoom(){
   U.screen=U.err?"online":"setup";render();
 }
 function onPresence(state){
-  const list=Object.entries(state||{}).map(([id,arr])=>{const m=(arr&&arr[0])||{};return {id,name:String(m.name||"Ospite").slice(0,16),host:!!m.host,at:+m.at||0}})
+  const list=Object.entries(state||{}).map(([id,arr])=>{const m=(arr&&arr[0])||{};return {id,name:String(m.name||"Ospite").slice(0,16),g:m.g==="m"?"m":"f",host:!!m.host,at:+m.at||0}})
     .sort((a,b)=>a.at-b.at);
   U.present=list;
   if(isHost()){
@@ -621,7 +747,7 @@ function onPresence(state){
         if(k<G.turn) G.turn--;
         if(wasTurn){G.flipped=false;if(G.style==="oov")G.cur=null;G.seq++}
       }
-      for(const p of list) if(!G.players.some(x=>x.id===p.id)){G.players.push({id:p.id,name:p.name});G.done.push(0);G.passes.push(0)}
+      for(const p of list) if(!G.players.some(x=>x.id===p.id)){G.players.push({id:p.id,name:p.name,g:p.g});G.done.push(0);G.passes.push(0)}
       if(G.players.length) G.turn%=G.players.length;
       pickTarget(G);
     }
@@ -632,7 +758,7 @@ function onPresence(state){
   }
   render();
 }
-function lobbySnap(){return {started:false,mode:U.mode,level:U.level,style:U.style,players:U.present.map(p=>({id:p.id,name:p.name}))}}
+function lobbySnap(){return {started:false,mode:U.mode,level:U.level,style:U.style,players:U.present.map(p=>({id:p.id,name:p.name,g:p.g}))}}
 function broadcastState(){
   if(!isHost()) return;
   const s=G?snapshot(G):lobbySnap();
@@ -649,7 +775,7 @@ function hostAct(from,type){
 }
 function hostStart(){
   if(!isHost()||U.present.length<2) return;
-  G=makeGame(U.present.map(p=>({id:p.id,name:p.name})));
+  G=makeGame(U.present.map(p=>({id:p.id,name:p.name,g:p.g})));
   broadcastState();render();
 }
 
@@ -670,11 +796,12 @@ function render(){
 }
 
 function renderSetup(){
-  const P=localPlayers();
+  const P=localPlayers(), GS=localGenders();
+  while(GS.length<P.length) GS.push(GS.length%2?"m":"f");
   const isG=U.mode==="gruppo";
   $app.innerHTML=`
   <section class="setup">
-    <div class="brand"><h1>Brace</h1><span class="ember" aria-hidden="true"></span></div>
+    <div class="brand"><svg class="logo" aria-hidden="true"><use href="#flame"/></svg><h1>Brace</h1></div>
     <p class="lede">Il gioco di carte piccante. Una carta a testa, a turno: domande, confessioni e sfide che si scaldano a ogni livello.</p>
     <div>
       <div class="label" style="margin-bottom:8px">Come si pesca</div>
@@ -689,14 +816,16 @@ function renderSetup(){
     </div>
     <div>
       <div class="label" style="margin-bottom:8px">Chi gioca su questo telefono</div>
-      ${isG?`<div class="plist">
-          ${P.map((n,k)=>`<div class="prow"><label class="field"><input id="pl${k}" data-k="${k}" maxlength="16" placeholder="Giocatore ${k+1}" value="${esc(n)}" aria-label="Nome giocatore ${k+1}"></label>
-            ${P.length>3?`<button class="x" data-rm="${k}" aria-label="Rimuovi giocatore ${k+1}">×</button>`:""}</div>`).join("")}
-          ${P.length<10?`<button class="add" id="addP">+ Aggiungi giocatore</button>`:""}
-        </div>`
-      :`<div class="names">
-        ${P.map((n,k)=>`<label class="field"><input id="pl${k}" data-k="${k}" maxlength="16" placeholder="Giocatore ${k+1}" value="${esc(n)}" aria-label="Nome giocatore ${k+1}"></label>`).join("")}
-      </div>`}
+      <div class="players">
+        ${P.map((n,k)=>{const g=GS[k]==="m"?"m":"f";return `<div class="pcard ${g}">
+          ${av({name:n||GNAME[g],g})}
+          <label class="field"><input id="pl${k}" data-k="${k}" maxlength="16" placeholder="Nome di ${g==="f"?"lei":"lui"}" value="${esc(n)}" aria-label="Nome del giocatore ${k+1} (${GNAME[g]})"></label>
+          <div class="gsw" role="group" aria-label="Lei o lui, giocatore ${k+1}"><button class="f" data-g="${k}:f" aria-pressed="${g==="f"}">♀ Lei</button><button class="m" data-g="${k}:m" aria-pressed="${g==="m"}">♂ Lui</button></div>
+          ${isG&&P.length>3?`<button class="x" data-rm="${k}" aria-label="Rimuovi giocatore ${k+1}">×</button>`:""}
+        </div>`}).join("")}
+        ${isG&&P.length<10?`<button class="add" id="addP">+ Aggiungi giocatore</button>`:""}
+      </div>
+      <p class="hint-g">Scrivi il nome e scegli <b class="gsym f">♀ Lei</b> o <b class="gsym m">♂ Lui</b>: le carte si accordano da sole.</p>
     </div>
     <div>
       <div class="label" style="margin-bottom:8px">Intensità</div>
@@ -721,19 +850,21 @@ function renderSetup(){
   document.getElementById("sO").onclick=()=>set("style","oov");
   $app.querySelectorAll(".lvl").forEach(b=>b.onclick=()=>set("level",+b.dataset.l));
   $app.querySelectorAll(".setup input[data-k]").forEach(inp=>inp.oninput=e=>{P[+e.target.dataset.k]=e.target.value;savePlayers()});
-  $app.querySelectorAll("[data-rm]").forEach(b=>b.onclick=()=>{P.splice(+b.dataset.rm,1);savePlayers();renderSetup()});
-  const add=document.getElementById("addP"); if(add) add.onclick=()=>{P.push("");savePlayers();renderSetup();const l=document.getElementById("pl"+(P.length-1));l&&l.focus()};
+  $app.querySelectorAll("[data-rm]").forEach(b=>b.onclick=()=>{P.splice(+b.dataset.rm,1);GS.splice(+b.dataset.rm,1);savePlayers();renderSetup()});
+  $app.querySelectorAll("[data-g]").forEach(b=>b.onclick=()=>{const [k,g]=b.dataset.g.split(":");GS[+k]=g;savePlayers();renderSetup()});
+  const add=document.getElementById("addP"); if(add) add.onclick=()=>{P.push("");GS.push(GS[GS.length-1]==="f"?"m":"f");savePlayers();renderSetup();const l=document.getElementById("pl"+(P.length-1));l&&l.focus()};
   document.getElementById("openEd").onclick=()=>{U.editor=true;renderSetup();document.getElementById("edText").focus()};
   document.getElementById("start").onclick=startLocal;
   document.getElementById("goOnline").onclick=()=>{U.err="";U.screen="online";render()};
   if(U.editor) bindEditor();
 }
-function savePlayers(){store.set("players",U.pc);store.set("group",U.pg)}
+function savePlayers(){store.set("players",U.pc);store.set("group",U.pg);store.set("gc",U.gc);store.set("gg",U.gg)}
 function startLocal(){
   const P=localPlayers();
   for(let k=0;k<P.length;k++) P[k]=P[k].trim()||("Giocatore "+(k+1));
   savePlayers();
-  G=makeGame(P.map((name,k)=>({id:"L"+k,name})));
+  const GS=localGenders();
+  G=makeGame(P.map((name,k)=>({id:"L"+k,name,g:GS[k]==="m"?"m":"f"})));
   U.lastSeq=-1;U.screen="game";U.editor=false;render();
 }
 
@@ -776,10 +907,16 @@ function bindEditor(){
 function renderOnline(){
   $app.innerHTML=`
   <section class="setup">
-    <div class="brand"><h1>Online</h1><span class="ember" aria-hidden="true"></span></div>
+    <div class="brand"><svg class="logo" aria-hidden="true"><use href="#flame"/></svg><h1>Online</h1></div>
     <p class="lede">Ognuno gioca dal suo telefono. Chi crea la stanza sceglie modalità e intensità nella schermata iniziale, poi manda il codice agli altri.</p>
     ${U.err?`<p class="err" role="alert">${esc(U.err)}</p>`:""}
-    <label class="field"><span class="label">Il tuo nome</span><input id="myName" maxlength="16" placeholder="Come ti chiami?" value="${esc(U.myName)}"></label>
+    <div><span class="label">Tu</span>
+      <div class="pcard ${U.myGender}" style="margin-top:8px">
+        ${av({name:U.myName||GNAME[U.myGender],g:U.myGender})}
+        <label class="field"><input id="myName" maxlength="16" placeholder="Il tuo nome" value="${esc(U.myName)}" aria-label="Il tuo nome"></label>
+        <div class="gsw" role="group" aria-label="Lei o lui"><button class="f" data-me="f" aria-pressed="${U.myGender==="f"}">♀ Lei</button><button class="m" data-me="m" aria-pressed="${U.myGender==="m"}">♂ Lui</button></div>
+      </div>
+    </div>
     <div class="box">
       <b>Crea una stanza</b>
       <span class="sub">${esc(U.mode==="coppia"?"In coppia":"Con gli amici")} · ${esc(LEVELS[U.level].name)} · ${U.style==="oov"?"Obbligo o verità":"Mazzo misto"}</span>
@@ -795,6 +932,7 @@ function renderOnline(){
     <button class="btn ghost" id="back">Indietro</button>
   </section>`;
   document.getElementById("myName").oninput=e=>U.myName=e.target.value;
+  $app.querySelectorAll("[data-me]").forEach(b=>b.onclick=()=>{U.myGender=b.dataset.me;store.set("mygender",U.myGender);renderOnline()});
   const code=document.getElementById("code");
   code.oninput=e=>{U.codeInput=e.target.value.toUpperCase().replace(/[^A-Z]/g,"").slice(0,4);e.target.value=U.codeInput};
   document.getElementById("create").onclick=()=>joinRoom(newCode(),true);
@@ -821,7 +959,7 @@ function renderLobby(){
     <p class="sub">Manda il link o il codice agli altri giocatori.</p>
     <div>
       <div class="label" style="margin-bottom:8px">In stanza (${people.length})</div>
-      <ul class="who">${people.map(p=>`<li><span>${esc(p.name)}</span><small>${p.id===myId?"tu":""}${p.host?(p.id===myId?" · ":"")+"crea la partita":""}</small></li>`).join("")||`<li><span class="sub">${o.connected?"Collegamento in corso…":"Connessione…"}</span></li>`}</ul>
+      <ul class="who">${people.map(p=>`<li><span>${av(p,true)}${esc(p.name)} ${gtag(p)}</span><small>${p.id===myId?"tu":""}${p.host?(p.id===myId?" · ":"")+"crea la partita":""}</small></li>`).join("")||`<li><span class="sub">${o.connected?"Collegamento in corso…":"Connessione…"}</span></li>`}</ul>
     </div>
     ${s?`<p class="sub">${esc(s.mode==="coppia"?"In coppia":"Con gli amici")} · ${esc((LEVELS[s.level]||LEVELS[2]).name)} · ${s.style==="oov"?"Obbligo o verità":"Mazzo misto"}</p>`:""}
     ${isHost()?`<button class="cta" id="go" ${people.length<2?"disabled":""}>${people.length<2?"Aspetta almeno un altro giocatore":"Inizia la partita"}</button>`
@@ -838,8 +976,8 @@ function renderLobby(){
   document.getElementById("leave").onclick=()=>{U.err="";leaveRoom()};
 }
 
-function fill(t,name){
-  return esc(t).replace(/\{B\}|\[partner\]/gi,"<em>"+esc(name)+"</em>");
+function fill(t,A,B){
+  return esc(gender(t,A,B)).replace(/\{B\}|\[partner\]/gi,`<em class="${B&&B.g==="m"?"m":"f"}">${esc(B&&B.name||"")}</em>`);
 }
 
 function renderGame(s){
@@ -853,7 +991,7 @@ function renderGame(s){
   const L=LEVELS[s.level]||LEVELS[2], CL=c&&LEVELS[c.l]?LEVELS[c.l]:L;
   const kindLabel=c?(oov?(c.k==="sfida"?"Obbligo":"Verità"):(KIND_LABEL[c.k]||"")):"";
   const tagClass=c&&KIND_LABEL[c.k]?c.k:"domanda";
-  const targetName=(P[s.target]||{}).name||"";
+  const targetP=P[s.target]||{name:"",g:"f"};
   // animazioni: carta nuova entra, carta girata ruota
   const newCard=s.seq!==U.lastSeq;
   const reveal=s.flipped&&(newCard||!U.lastFlipped);
@@ -868,20 +1006,20 @@ function renderGame(s){
         :`<span class="chip"><span class="dot">${L.fl}</span>${L.name}</span>`}
       <span class="count">${online?`Stanza ${esc(U.online.code)} · `:""}${oov?`Verità ${s.vdn} · Obblighi ${s.odn}`:`Carta ${s.i+1} / ${s.n}`}</span>
     </div>
-    <div class="turn"><small>Tocca a</small><strong>${esc(turnP.name)}${online&&turnP.id===myId?" (tu)":""}</strong></div>
+    <div class="turn">${av(turnP)}<div class="who-turn"><small>Tocca a</small><strong>${esc(turnP.name)}${online&&turnP.id===myId?" (tu)":""}</strong>${P.length>1?`<span class="to">carta per <b class="gsym ${targetP.g==="m"?"m":"f"}">${esc(targetP.name)} ${GSYM[targetP.g==="m"?"m":"f"]}</b></span>`:""}</div></div>
     <div class="table">
       <div class="stack s2" aria-hidden="true"></div><div class="stack s1" aria-hidden="true"></div>
       <div class="card ${cls}" id="card" role="button" tabindex="0" aria-label="${s.flipped?"Carta girata":oov?"Scegli obbligo o verità":"Tocca per girare la carta"}">
-        <div class="face back"><div class="seal"><span>Brace</span></div><div class="hint">${!canAct?waitTxt:oov?"Obbligo o verità?":"Tocca per girare"}</div></div>
+        <div class="face back"><div class="seal"><svg aria-hidden="true"><use href="#flame"/></svg><span>Brace</span></div><div class="hint">${!canAct?waitTxt:oov?"Obbligo o verità?":"Tocca per girare"}</div></div>
         <div class="face front">${c?`
-          <div class="kind"><span class="tag ${tagClass}">${kindLabel}</span>${c.mine?`<span class="mine">Tua</span>`:""}<span class="heat">${CL.fl}</span></div>
-          <p>${fill(c.t,targetName)}</p>
-          <div class="foot"><span>per ${esc(turnP.name)}</span><span>${CL.name}</span></div>`:""}
+          <div class="band ${tagClass}"><span class="tag">${kindLabel}</span>${c.mine?`<span class="mine">Tua</span>`:""}<span class="heat">${CL.fl}</span></div>
+          <div class="body"><p>${fill(c.t,turnP,targetP)}</p>
+          <div class="foot"><span class="pair">${av(turnP,true)}→${av(targetP,true)}</span><span>${CL.name}</span></div></div>`:""}
         </div>
       </div>
     </div>
     <div class="score">
-      ${P.map((p,k)=>`<span>${esc(p.name)}: <b>${(s.done||[])[k]||0}</b>${P.length>2?"":" fatte"} · <b>${(s.passes||[])[k]||0}</b> passi</span>`).join("")}
+      ${P.map((p,k)=>`<span>${gtag(p)} ${esc(p.name)}: <b>${(s.done||[])[k]||0}</b>${P.length>2?"":" fatte"} · <b>${(s.passes||[])[k]||0}</b> passi</span>`).join("")}
     </div>
     ${!canAct?`<p class="wait">${s.flipped?`${esc(turnP.name)} sta giocando la carta…`:`${esc(turnP.name)} sta scegliendo…`}</p>`
     :oov&&!s.flipped?`<div class="actions" style="grid-template-columns:1fr 1fr">
@@ -969,6 +1107,27 @@ document.getElementById("chatClose").onclick=()=>{closeChat();const b=document.g
 document.getElementById("chatForm").onsubmit=e=>{e.preventDefault();sendChat($input.value);$input.value="";$input.focus()};
 document.querySelectorAll("[data-q]").forEach(b=>b.onclick=()=>sendChat(b.dataset.q));
 addEventListener("keydown",e=>{if(e.key==="Escape"&&U.chatOpen)closeChat()});
+/* braci che salgono sullo sfondo */
+(function(){
+  const c=document.getElementById("embers");
+  if(!c||!c.getContext||matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+  const x=c.getContext("2d"),dpr=Math.min(2,window.devicePixelRatio||1);let w=0,h=0;
+  const size=()=>{w=c.width=innerWidth*dpr;h=c.height=innerHeight*dpr};size();addEventListener("resize",size);
+  const spawn=any=>({x:Math.random()*w,y:any?Math.random()*h:h+20,r:(Math.random()*1.8+.6)*dpr,v:(Math.random()*.5+.2)*dpr,d:Math.random()*6.3,hue:Math.random()<.55?18:338,a:Math.random()*.5+.3});
+  const ps=Array.from({length:34},()=>spawn(true));
+  (function tick(){
+    x.clearRect(0,0,w,h);
+    for(const p of ps){
+      p.y-=p.v;p.d+=.012;p.x+=Math.sin(p.d)*.35*dpr;
+      if(p.y<-20) Object.assign(p,spawn(false));
+      const fade=Math.min(1,p.y/(h*.35));
+      const g=x.createRadialGradient(p.x,p.y,0,p.x,p.y,p.r*5);
+      g.addColorStop(0,`hsla(${p.hue},100%,70%,${p.a*fade})`);g.addColorStop(1,`hsla(${p.hue},100%,55%,0)`);
+      x.fillStyle=g;x.beginPath();x.arc(p.x,p.y,p.r*5,0,6.3);x.fill();
+    }
+    requestAnimationFrame(tick);
+  })();
+})();
 addEventListener("pagehide",()=>{try{U.online&&U.online.ch.untrack()}catch(e){}});
 /* link diretto a una stanza: …/brace/#ABCD */
 (function(){
