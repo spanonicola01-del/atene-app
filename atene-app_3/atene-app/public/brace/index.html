@@ -308,6 +308,28 @@ body::before{content:"";position:fixed;inset:-20%;z-index:0;pointer-events:none;
 .sheet{background:linear-gradient(170deg,#2f1422,#1a0b13);border-color:var(--glass2);box-shadow:0 30px 80px -20px rgba(255,79,139,.4)}
 .chat{background:linear-gradient(175deg,#2a1220,#170910)}
 @media (prefers-reduced-motion:reduce){body::before,.brand .logo,.brand h1,.back::after{animation:none}}
+
+/* ---------- v6: la carta non copre mai i pulsanti ---------- */
+.table{container-type:size;overflow:visible}
+@supports (height:1cqh){
+  .card,.stack{width:auto;max-width:none;max-height:none;aspect-ratio:5/7;height:min(100cqh,504px,calc(100cqw * 1.4))}
+}
+.front{container-type:inline-size}
+@supports (font-size:1cqi){
+  .front p{font-size:clamp(16px,7.6cqi,29px)}
+  .front .band{padding:5.5cqi 6cqi 4.5cqi}
+  .front .body{padding:4cqi 6.5cqi 6cqi}
+}
+.back .seal{max-width:200px}
+.actions{position:relative;z-index:2}
+@media (max-height:760px){
+  .game{gap:10px}
+  .turn .av{width:34px;height:34px;font-size:15px}
+  .turn strong{font-size:23px}
+  .turn small{font-size:11px}
+  .score{display:none}
+  .btn{padding:13px 12px}
+}
 </style>
 </head>
 <body>
