@@ -112,6 +112,19 @@ const fetchAll = async (table) => {
   }
 };
 
+// true sugli schermi stretti (telefoni): l'app mostra la vista agenda
+const MOBILE_QUERY = "(max-width: 700px)";
+const useIsMobile = () => {
+  const [m, setM] = useState(() => typeof window !== "undefined" && window.matchMedia(MOBILE_QUERY).matches);
+  useEffect(() => {
+    const mq = window.matchMedia(MOBILE_QUERY);
+    const on = () => setM(mq.matches);
+    mq.addEventListener("change", on);
+    return () => mq.removeEventListener("change", on);
+  }, []);
+  return m;
+};
+
 // messaggio leggibile per gli errori di salvataggio
 // (23P01 = la regola del database ha bloccato una sovrapposizione)
 const saveErrorMsg = (error) =>
@@ -178,6 +191,8 @@ function Calendar({ session }) {
   const [showReport, setShowReport] = useState(false);
   const [query, setQuery] = useState("");
   const [online, setOnline] = useState(true);
+  const isMobile = useIsMobile();
+  const [showCat, setShowCat] = useState(false); // dettaglio incassi per campo (telefono)
 
   // caricamento iniziale + realtime
   useEffect(() => {
@@ -313,14 +328,16 @@ function Calendar({ session }) {
       .sort((a, b) => (a.date + oraLabel(a.hour)).localeCompare(b.date + oraLabel(b.hour)));
   }, [query, bookings]);
 
+  // sul telefono gli incassi seguono sempre il giorno scelto
+  const effView = isMobile ? "day" : view;
   const revenue = useMemo(() => {
     const valueOf = (b) => {
       const f = FIELD_MAP[b.field];
       return b.price != null ? Number(b.price) : f.price * (b.duration || 1);
     };
-    const refDay = view === "day" ? dayDate : new Date();
+    const refDay = effView === "day" ? dayDate : new Date();
     const dayStr = iso(refDay);
-    const weekSet = new Set((view === "week" ? weekDays : Array.from({ length: 7 }, (_, i) => { const d = startOfWeek(refDay); d.setDate(d.getDate() + i); return d; })).map(iso));
+    const weekSet = new Set((effView === "week" ? weekDays : Array.from({ length: 7 }, (_, i) => { const d = startOfWeek(refDay); d.setDate(d.getDate() + i); return d; })).map(iso));
     let day = 0, week = 0, month = 0, dayCount = 0;
     const byField = {};
     const cat = { calcio: { day: 0, week: 0, month: 0 }, padel: { day: 0, week: 0, month: 0 }, evento: { day: 0, week: 0, month: 0 }, scuola: { day: 0, week: 0, month: 0 } };
@@ -332,11 +349,33 @@ function Calendar({ session }) {
       if (isMonth) month += v;
       const key = b.field === "calcio5" ? "calcio" : (b.field === "padel1" || b.field === "padel2") ? "padel" : b.field === "evento" ? "evento" : b.field === "scuola" ? "scuola" : null;
       if (key) { if (isDay) cat[key].day += v; if (isWeek) cat[key].week += v; if (isMonth) cat[key].month += v; }
-      const inScope = view === "day" ? isDay : isWeek;
+      const inScope = effView === "day" ? isDay : isWeek;
       if (inScope) byField[b.field] = (byField[b.field] || 0) + v;
     }
     return { day, week, month, byField, dayCount, refDay, cat };
-  }, [bookings, view, weekDays, dayDate]);
+  }, [bookings, effView, weekDays, dayDate]);
+
+  const modals = (
+    <>
+      {modal && <BookingModal data={modal} bookings={bookings} contacts={contacts} onClose={() => setModal(null)} onSave={saveBooking} onSaveMany={saveManyBookings} onDelete={deleteBooking} />}
+      {showRubrica && <RubricaModal contacts={contacts} onClose={() => setShowRubrica(false)} onSave={saveContact} onDelete={deleteContact} />}
+      {showReport && <ReportModal bookings={bookings} onClose={() => setShowReport(false)} />}
+    </>
+  );
+
+  if (isMobile) {
+    return (
+      <MobileCalendar
+        session={session} online={online} contactsCount={contacts.length}
+        query={query} setQuery={setQuery} results={results}
+        dayDate={dayDate} setDayDate={setDayDate} today={today}
+        bookings={bookings} revenue={revenue} showCat={showCat} setShowCat={setShowCat}
+        onOpen={setModal} onNew={() => setModal({ date: iso(dayDate), hour: 18 })}
+        onRubrica={() => setShowRubrica(true)} onReport={() => setShowReport(true)}
+        modals={modals}
+      />
+    );
+  }
 
   return (
     <div style={s.app}>
@@ -418,9 +457,150 @@ function Calendar({ session }) {
         </>
       )}
 
-      {modal && <BookingModal data={modal} bookings={bookings} contacts={contacts} onClose={() => setModal(null)} onSave={saveBooking} onSaveMany={saveManyBookings} onDelete={deleteBooking} />}
-      {showRubrica && <RubricaModal contacts={contacts} onClose={() => setShowRubrica(false)} onSave={saveContact} onDelete={deleteContact} />}
-      {showReport && <ReportModal bookings={bookings} onClose={() => setShowReport(false)} />}
+      {modals}
+    </div>
+  );
+}
+
+// ---------------- VISTA TELEFONO ----------------
+function MobileCalendar({ session, online, contactsCount, query, setQuery, results, dayDate, setDayDate, today, bookings, revenue, showCat, setShowCat, onOpen, onNew, onRubrica, onReport, modals }) {
+  const weekStart = startOfWeek(dayDate);
+  const days = Array.from({ length: 7 }, (_, i) => { const d = new Date(weekStart); d.setDate(d.getDate() + i); return d; });
+  const dayStr = iso(dayDate);
+  const countByDay = useMemo(() => {
+    const m = {};
+    for (const b of bookings) m[b.date] = (m[b.date] || 0) + 1;
+    return m;
+  }, [bookings]);
+  const list = useMemo(
+    () => bookings.filter((b) => b.date === dayStr).sort((a, b) => a.hour - b.hour || FIELDS.findIndex((f) => f.id === a.field) - FIELDS.findIndex((f) => f.id === b.field)),
+    [bookings, dayStr]
+  );
+  const go = (n) => { const d = new Date(dayDate); d.setDate(d.getDate() + n); setDayDate(d); };
+  const goToday = () => { const d = new Date(); d.setHours(0, 0, 0, 0); setDayDate(d); };
+  const mese = MESI[revenue.refDay.getMonth()];
+
+  return (
+    <div style={m.app}>
+      <style>{globalCss}</style>
+
+      <header style={m.header}>
+        <div style={m.topRow}>
+          <img src={LOGO_DATA_URI} alt="Atene Sport Village" style={m.logo} />
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div style={m.title}>Atene Central Village</div>
+            <div style={m.status}>
+              <span style={{ ...m.statusDot, background: online ? "#4ADE80" : "#F59E0B" }} />
+              {online ? "Sincronizzato" : "Non connesso"}
+            </div>
+          </div>
+          <button style={m.headBtn} onClick={onRubrica} aria-label="Rubrica">
+            <Users size={19} />
+            {contactsCount > 0 && <span style={m.badge}>{contactsCount}</span>}
+          </button>
+          <button style={m.headBtn} onClick={onReport} aria-label="Report"><BarChart3 size={19} /></button>
+          <button style={m.headBtn} onClick={() => supabase.auth.signOut()} aria-label="Esci"><LogOut size={18} /></button>
+        </div>
+        <div style={m.searchWrap}>
+          <Search size={17} style={m.searchIcon} />
+          <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Cerca cliente o telefono" style={m.searchInput} />
+          {query && <button style={m.searchClear} onClick={() => setQuery("")} aria-label="Cancella ricerca"><X size={16} /></button>}
+        </div>
+      </header>
+
+      {query ? (
+        <SearchResults results={results} onOpen={onOpen} onClose={() => setQuery("")} />
+      ) : (
+        <>
+          <div style={m.dateBar}>
+            <div style={m.monthRow}>
+              <span style={m.monthLabel}>{MESI[dayDate.getMonth()]} {dayDate.getFullYear()}</span>
+              <div style={{ display: "flex", gap: 6 }}>
+                <button style={m.navBtn} onClick={() => go(-7)} aria-label="Settimana precedente"><ChevronLeft size={18} /></button>
+                <button style={m.todayBtn} onClick={goToday}>Oggi</button>
+                <button style={m.navBtn} onClick={() => go(7)} aria-label="Settimana successiva"><ChevronRight size={18} /></button>
+              </div>
+            </div>
+            <div className="am-strip" style={m.strip}>
+              {days.map((d, i) => {
+                const ds = iso(d);
+                const sel = ds === dayStr, isToday = ds === today, n = countByDay[ds] || 0;
+                return (
+                  <button key={ds} onClick={() => setDayDate(d)} style={{ ...m.dayChip, ...(sel ? m.dayChipSel : {}) }}>
+                    <span style={{ ...m.dayChipName, ...(sel ? { color: "rgba(255,255,255,0.75)" } : {}) }}>{GIORNI[i]}</span>
+                    <span style={{ ...m.dayChipNum, ...(isToday && !sel ? { color: "#0284C7" } : {}) }}>{d.getDate()}</span>
+                    <span style={{ ...m.dayChipDot, opacity: n ? 1 : 0, background: sel ? "#38BDF8" : "#0B2545" }} />
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
+          <div style={m.revCard}>
+            <div style={m.revRow}>
+              <div style={m.revItem}><span style={m.revLbl}>Giorno</span><span style={m.revNum}>{eur(revenue.day)}</span></div>
+              <div style={m.revSep} />
+              <div style={m.revItem}><span style={m.revLbl}>Settimana</span><span style={m.revNum}>{eur(revenue.week)}</span></div>
+              <div style={m.revSep} />
+              <div style={m.revItem}><span style={m.revLbl}>{mese}</span><span style={{ ...m.revNum, color: "#0284C7" }}>{eur(revenue.month)}</span></div>
+            </div>
+            <button style={m.revToggle} onClick={() => setShowCat(!showCat)}>
+              {showCat ? "Nascondi dettaglio" : "Dettaglio per campo"}
+              <ChevronDown size={15} style={{ transform: showCat ? "rotate(180deg)" : "none", transition: "transform .2s" }} />
+            </button>
+            {showCat && (
+              <div style={m.catGrid}>
+                {[["Calcio a 5", "#2E7D32", revenue.cat.calcio], ["Padel", "#1565C0", revenue.cat.padel], ["Eventi", "#AD1457", revenue.cat.evento], ["Scuola", "#EF6C00", revenue.cat.scuola]].map(([lbl, col, d]) => (
+                  <div key={lbl} style={m.catItem}>
+                    <div style={m.catHead}><span style={{ ...s.dot, background: col }} />{lbl}</div>
+                    <div style={m.catVals}>
+                      <span>Giorno <b>{eur(d.day)}</b></span>
+                      <span>Sett. <b>{eur(d.week)}</b></span>
+                      <span>{mese.slice(0, 3)} <b>{eur(d.month)}</b></span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
+          <div style={m.listHead}>
+            <span>{GIORNI_FULL[(dayDate.getDay() + 6) % 7]} {dayDate.getDate()} {MESI[dayDate.getMonth()]}</span>
+            <span style={m.listCount}>{list.length} {list.length === 1 ? "prenotazione" : "prenotazioni"}</span>
+          </div>
+
+          <div style={m.list}>
+            {list.length === 0 && (
+              <div style={m.empty}>
+                <div style={m.emptyTitle}>Nessuna prenotazione</div>
+                <div style={m.emptySub}>Tocca + per aggiungerne una</div>
+              </div>
+            )}
+            {list.map((b) => {
+              const f = FIELD_MAP[b.field];
+              return (
+                <button key={b.id} style={m.item} onClick={() => onOpen(b)}>
+                  <div style={m.itemTime}>
+                    <span style={m.itemStart}>{oraLabel(b.hour)}</span>
+                    <span style={m.itemEnd}>{oraLabel(b.hour + (b.duration || 1))}</span>
+                  </div>
+                  <div style={{ ...m.itemBar, background: f.color }} />
+                  <div style={m.itemBody}>
+                    <span style={{ ...m.itemField, color: f.color, background: f.tint }}>{f.name}</span>
+                    <span style={m.itemName}>{b.name || f.name}</span>
+                    {b.note && <span style={m.itemNote}>{b.note}</span>}
+                  </div>
+                  <ChevronRight size={18} style={{ color: "#C4C0B6", flexShrink: 0 }} />
+                </button>
+              );
+            })}
+          </div>
+
+          <button style={m.fab} onClick={onNew} aria-label="Nuova prenotazione"><Plus size={26} strokeWidth={2.6} /></button>
+        </>
+      )}
+
+      {modals}
     </div>
   );
 }
@@ -606,8 +786,8 @@ function BookingModal({ data, bookings, contacts = [], onClose, onSave, onSaveMa
   const suggested = f.price * Number(duration);
 
   return (
-    <div style={s.overlay} onClick={onClose}>
-      <div style={s.modal} onClick={(e) => e.stopPropagation()}>
+    <div className="am-overlay" style={s.overlay} onClick={onClose}>
+      <div className="am-modal" style={s.modal} onClick={(e) => e.stopPropagation()}>
         <div style={s.modalHead}>
           <h2 style={s.modalTitle}>{editing ? "Modifica prenotazione" : "Nuova prenotazione"}</h2>
           <button style={s.iconBtn} onClick={onClose}><X size={18} /></button>
@@ -754,8 +934,8 @@ function RubricaModal({ contacts, onClose, onSave, onDelete }) {
   const submit = async () => { if (!name.trim()) return; const ok = await onSave({ id: editId, name: name.trim(), phone: phone.trim() }); if (ok) reset(); };
 
   return (
-    <div style={s.overlay} onClick={onClose}>
-      <div style={s.modal} onClick={(e) => e.stopPropagation()}>
+    <div className="am-overlay" style={s.overlay} onClick={onClose}>
+      <div className="am-modal" style={s.modal} onClick={(e) => e.stopPropagation()}>
         <div style={s.modalHead}>
           <h2 style={s.modalTitle}>Rubrica clienti</h2>
           <button style={s.iconBtn} onClick={onClose}><X size={18} /></button>
@@ -858,8 +1038,8 @@ function ReportModal({ bookings, onClose }) {
   };
 
   return (
-    <div style={s.overlay} onClick={onClose}>
-      <div style={{ ...s.modal, width: "min(620px, 100%)" }} onClick={(e) => e.stopPropagation()}>
+    <div className="am-overlay" style={s.overlay} onClick={onClose}>
+      <div className="am-modal" style={{ ...s.modal, width: "min(620px, 100%)" }} onClick={(e) => e.stopPropagation()}>
         <div style={s.modalHead}>
           <h2 style={s.modalTitle}>Report & Statistiche</h2>
           <button style={s.iconBtn} onClick={onClose}><X size={18} /></button>
@@ -928,6 +1108,21 @@ button { font-family: inherit; cursor: pointer; }
 input, select, textarea { font-family: inherit; }
 ::-webkit-scrollbar { height: 8px; width: 8px; }
 ::-webkit-scrollbar-thumb { background: #D6D3CC; border-radius: 8px; }
+button { -webkit-tap-highlight-color: transparent; transition: transform .08s ease, background .15s ease; }
+button:active { transform: scale(0.97); }
+@keyframes am-up { from { transform: translateY(24px); opacity: 0; } to { transform: none; opacity: 1; } }
+@media (max-width: 700px) {
+  /* finestre come pannelli dal basso, comode col pollice */
+  .am-overlay { place-items: end center !important; padding: 0 !important; }
+  .am-modal { width: 100% !important; max-height: 92vh !important; border-radius: 22px 22px 0 0 !important;
+    padding: 18px 18px calc(22px + env(safe-area-inset-bottom)) !important; animation: am-up .2s ease-out; }
+  .am-modal::before { content: ""; display: block; width: 40px; height: 5px; border-radius: 3px; background: #D9D6CF; margin: -6px auto 12px; }
+  /* testo almeno 16px: evita lo zoom automatico dell'iPhone sui campi */
+  .am-modal input, .am-modal select, .am-modal textarea { font-size: 16px !important; min-height: 46px; }
+  .am-modal select { padding: 0 6px !important; }
+  .am-modal button { min-height: 42px; }
+  .am-strip::-webkit-scrollbar { display: none; }
+}
 `;
 
 const s = {
@@ -1044,4 +1239,60 @@ const s = {
   repBar: { width: "100%", background: "#1565C0", borderRadius: "3px 3px 0 0", minHeight: 2 },
   repHourLbl: { fontSize: 9, color: "#A8A399", fontWeight: 600 },
   repHint: { fontSize: 12.5, color: "#5A574F", marginTop: 8, padding: "8px 12px", background: "#F7F5F0", borderRadius: 9 },
+};
+
+// ---- stili della vista telefono ----
+const NAVY = "#0B2545";
+const m = {
+  app: { fontFamily: "'Inter', system-ui, sans-serif", background: "#F4F2ED", minHeight: "100vh", color: NAVY, paddingBottom: "calc(96px + env(safe-area-inset-bottom))" },
+  header: { position: "sticky", top: 0, zIndex: 30, background: `linear-gradient(135deg, ${NAVY} 0%, #0A1E3D 100%)`, padding: "calc(10px + env(safe-area-inset-top)) 14px 12px", boxShadow: "0 6px 20px rgba(11,37,69,0.25)" },
+  topRow: { display: "flex", alignItems: "center", gap: 8 },
+  logo: { height: 34, borderRadius: 7, flexShrink: 0 },
+  title: { color: "#fff", fontWeight: 700, fontSize: 16, letterSpacing: "-0.02em", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" },
+  status: { display: "flex", alignItems: "center", gap: 6, color: "#9FD3F5", fontSize: 12.5, fontWeight: 500, marginTop: 1 },
+  statusDot: { width: 7, height: 7, borderRadius: "50%" },
+  headBtn: { position: "relative", width: 42, height: 42, borderRadius: 12, border: "none", background: "rgba(255,255,255,0.1)", color: "#fff", display: "grid", placeItems: "center", flexShrink: 0 },
+  badge: { position: "absolute", top: -3, right: -3, minWidth: 18, height: 18, padding: "0 5px", borderRadius: 9, background: "#38BDF8", color: NAVY, fontSize: 11, fontWeight: 800, display: "grid", placeItems: "center" },
+  searchWrap: { position: "relative", display: "flex", alignItems: "center", marginTop: 10 },
+  searchIcon: { position: "absolute", left: 13, color: "#8AAAC7" },
+  searchInput: { width: "100%", height: 44, padding: "0 40px", borderRadius: 12, border: "1px solid rgba(255,255,255,0.14)", fontSize: 16, background: "rgba(255,255,255,0.1)", color: "#fff", outline: "none" },
+  searchClear: { position: "absolute", right: 6, width: 34, height: 34, borderRadius: 9, border: "none", background: "transparent", color: "#9FD3F5", display: "grid", placeItems: "center" },
+  dateBar: { padding: "14px 14px 4px" },
+  monthRow: { display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 },
+  monthLabel: { fontSize: 20, fontWeight: 800, letterSpacing: "-0.03em" },
+  navBtn: { width: 38, height: 38, borderRadius: 11, border: "1px solid #E4E1DA", background: "#fff", color: "#5A574F", display: "grid", placeItems: "center" },
+  todayBtn: { height: 38, padding: "0 14px", borderRadius: 11, border: "1px solid #E4E1DA", background: "#fff", fontWeight: 700, fontSize: 14, color: NAVY },
+  strip: { display: "grid", gridTemplateColumns: "repeat(7, 1fr)", gap: 6 },
+  dayChip: { display: "flex", flexDirection: "column", alignItems: "center", gap: 3, padding: "9px 0 7px", borderRadius: 14, border: "none", background: "#fff", boxShadow: "0 1px 2px rgba(11,37,69,0.06)", color: NAVY },
+  dayChipSel: { background: NAVY, color: "#fff", boxShadow: "0 6px 14px rgba(11,37,69,0.28)" },
+  dayChipName: { fontSize: 11.5, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.04em", color: "#8A867C" },
+  dayChipNum: { fontSize: 19, fontWeight: 800, letterSpacing: "-0.02em" },
+  dayChipDot: { width: 5, height: 5, borderRadius: "50%" },
+  revCard: { margin: "12px 14px 0", padding: "12px 14px 6px", background: "#fff", borderRadius: 18, boxShadow: "0 1px 3px rgba(11,37,69,0.07)" },
+  revRow: { display: "flex", alignItems: "center" },
+  revItem: { flex: 1, display: "flex", flexDirection: "column", alignItems: "center", gap: 2, minWidth: 0 },
+  revSep: { width: 1, height: 30, background: "#EEEBE4" },
+  revLbl: { fontSize: 11.5, fontWeight: 700, color: "#8A867C", textTransform: "uppercase", letterSpacing: "0.04em" },
+  revNum: { fontSize: 18, fontWeight: 800, letterSpacing: "-0.02em", whiteSpace: "nowrap" },
+  revToggle: { display: "flex", alignItems: "center", justifyContent: "center", gap: 4, width: "100%", marginTop: 8, padding: "8px 0", border: "none", borderTop: "1px solid #F0EDE7", background: "transparent", color: "#6B675E", fontSize: 13.5, fontWeight: 600 },
+  catGrid: { display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, padding: "4px 0 10px" },
+  catItem: { padding: "10px 11px", borderRadius: 12, background: "#F7F5F0" },
+  catHead: { display: "flex", alignItems: "center", gap: 7, fontSize: 13.5, fontWeight: 700, marginBottom: 6 },
+  catVals: { display: "flex", flexDirection: "column", gap: 2, fontSize: 13, color: "#6B675E" },
+  listHead: { display: "flex", justifyContent: "space-between", alignItems: "baseline", padding: "20px 18px 8px", fontSize: 16, fontWeight: 800, letterSpacing: "-0.02em" },
+  listCount: { fontSize: 13, fontWeight: 600, color: "#8A867C", letterSpacing: 0 },
+  list: { display: "flex", flexDirection: "column", gap: 10, padding: "0 14px" },
+  item: { display: "flex", alignItems: "stretch", gap: 12, width: "100%", padding: "14px 12px 14px 14px", borderRadius: 18, border: "none", background: "#fff", boxShadow: "0 1px 3px rgba(11,37,69,0.07)", textAlign: "left", color: NAVY, alignContent: "center" },
+  itemTime: { display: "flex", flexDirection: "column", justifyContent: "center", minWidth: 50 },
+  itemStart: { fontSize: 17, fontWeight: 800, letterSpacing: "-0.02em" },
+  itemEnd: { fontSize: 13, fontWeight: 600, color: "#A8A399" },
+  itemBar: { width: 4, borderRadius: 4, flexShrink: 0 },
+  itemBody: { flex: 1, minWidth: 0, display: "flex", flexDirection: "column", alignItems: "flex-start", gap: 5, justifyContent: "center" },
+  itemField: { fontSize: 12, fontWeight: 700, padding: "3px 8px", borderRadius: 7 },
+  itemName: { fontSize: 16.5, fontWeight: 700, letterSpacing: "-0.01em", maxWidth: "100%", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" },
+  itemNote: { fontSize: 13.5, color: "#8A867C", maxWidth: "100%", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" },
+  empty: { padding: "40px 16px", textAlign: "center", background: "#fff", borderRadius: 18, border: "1.5px dashed #E2DFD8" },
+  emptyTitle: { fontSize: 16, fontWeight: 700 },
+  emptySub: { fontSize: 14, color: "#8A867C", marginTop: 4 },
+  fab: { position: "fixed", right: 18, bottom: "calc(20px + env(safe-area-inset-bottom))", width: 60, height: 60, borderRadius: 20, border: "none", background: NAVY, color: "#fff", display: "grid", placeItems: "center", boxShadow: "0 10px 24px rgba(11,37,69,0.38)", zIndex: 40 },
 };
