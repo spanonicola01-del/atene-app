@@ -1,6 +1,5 @@
 import React, { useState, useMemo, useEffect } from "react";
 import { createClient } from "@supabase/supabase-js";
-import * as XLSX from "xlsx";
 import { ChevronLeft, ChevronRight, Plus, X, User, Phone, Trash2, Search, AlertTriangle, Users, ChevronDown, LogOut, Wifi, WifiOff, MessageCircle, BarChart3, Download } from "lucide-react";
 
 // ============================================================
@@ -29,7 +28,8 @@ const FIELD_MAP = Object.fromEntries(FIELDS.map((f) => [f.id, f]));
 
 const HOURS = Array.from({ length: 17 }, (_, i) => i + 8);
 // Orari di inizio selezionabili, a passi di mezz'ora (es. 16:30)
-const START_TIMES = HOURS.flatMap((h) => (h < 24 ? [h, h + 0.5] : [h]));
+// (le 24:00 non sono un orario di inizio valido)
+const START_TIMES = HOURS.filter((h) => h < 24).flatMap((h) => [h, h + 0.5]);
 // 16.5 -> "16:30"
 const oraLabel = (h) => {
   const n = Number(h);
@@ -99,6 +99,26 @@ const overlaps = (a, b) => {
 const fromRow = (r) => ({ id: r.id, field: r.field, date: r.date, hour: r.hour, duration: Number(r.duration), name: r.name, phone: r.phone, note: r.note, price: r.price == null ? null : Number(r.price) });
 const toRow = (b) => ({ id: b.id, field: b.field, date: b.date, hour: b.hour, duration: b.duration, name: b.name, phone: b.phone, note: b.note, price: b.price });
 
+// Supabase restituisce al massimo 1000 righe per richiesta:
+// scarica la tabella a pagine finché non arrivano tutte le righe.
+const PAGE = 1000;
+const fetchAll = async (table) => {
+  const rows = [];
+  for (let from = 0; ; from += PAGE) {
+    const { data, error } = await supabase.from(table).select("*").order("id").range(from, from + PAGE - 1);
+    if (error) return { data: rows.length ? rows : null, error };
+    rows.push(...data);
+    if (data.length < PAGE) return { data: rows, error: null };
+  }
+};
+
+// messaggio leggibile per gli errori di salvataggio
+// (23P01 = la regola del database ha bloccato una sovrapposizione)
+const saveErrorMsg = (error) =>
+  error.code === "23P01"
+    ? "Il campo è già occupato in quell'orario (forse da una prenotazione appena inserita da un altro operatore)."
+    : error.message;
+
 export default function App() {
   const [session, setSession] = useState(undefined); // undefined = in caricamento
 
@@ -163,8 +183,8 @@ function Calendar({ session }) {
   useEffect(() => {
     let active = true;
     (async () => {
-      const { data: bk, error: e1 } = await supabase.from("bookings").select("*");
-      const { data: cl, error: e2 } = await supabase.from("clients").select("*");
+      const { data: bk, error: e1 } = await fetchAll("bookings");
+      const { data: cl, error: e2 } = await fetchAll("clients");
       if (!active) return;
       if (e1 || e2) setOnline(false);
       if (bk) setBookings(bk.map(fromRow));
@@ -198,9 +218,15 @@ function Calendar({ session }) {
 
   const saveBooking = async (b) => {
     const rec = { ...b, id: b.id || (crypto.randomUUID ? crypto.randomUUID() : String(Date.now())) };
+    const old = bookings.find((x) => x.id === rec.id);
     setBookings((prev) => [...prev.filter((x) => x.id !== rec.id), rec]); // ottimistico
     const { error } = await supabase.from("bookings").upsert(toRow(rec));
-    if (error) { alert("Salvataggio non riuscito: " + error.message); }
+    if (error) {
+      // ripristina com'era e lascia aperta la finestra per riprovare
+      setBookings((prev) => [...prev.filter((x) => x.id !== rec.id), ...(old ? [old] : [])]);
+      alert("Salvataggio non riuscito: " + saveErrorMsg(error));
+      return;
+    }
     if (rec.name) {
       const exists = contacts.some((c) => c.name.toLowerCase() === rec.name.toLowerCase());
       if (!exists) saveContact({ name: rec.name, phone: rec.phone || "" });
@@ -209,8 +235,15 @@ function Calendar({ session }) {
   };
 
   const deleteBooking = async (id) => {
+    const old = bookings.find((x) => x.id === id);
     setBookings((prev) => prev.filter((x) => x.id !== id));
-    await supabase.from("bookings").delete().eq("id", id);
+    // .select() restituisce le righe davvero cancellate: se è vuoto, il database non l'ha cancellata
+    const { data, error } = await supabase.from("bookings").delete().eq("id", id).select("id");
+    if (error || !data || data.length === 0) {
+      if (old) setBookings((prev) => [...prev.filter((x) => x.id !== id), old]);
+      alert("Cancellazione non riuscita" + (error ? ": " + error.message : ". Controlla la connessione e riprova."));
+      return;
+    }
     setModal(null);
   };
 
@@ -227,7 +260,13 @@ function Calendar({ session }) {
     if (toInsert.length) {
       setBookings((prev) => [...prev, ...toInsert]);
       const { error } = await supabase.from("bookings").upsert(toInsert.map(toRow));
-      if (error) alert("Errore nel salvataggio: " + error.message);
+      if (error) {
+        // il salvataggio è tutto-o-niente: toglie le prenotazioni non salvate e lascia aperta la finestra
+        const ids = new Set(toInsert.map((x) => x.id));
+        setBookings((prev) => prev.filter((x) => !ids.has(x.id)));
+        alert("Errore nel salvataggio, nessuna prenotazione creata: " + saveErrorMsg(error));
+        return;
+      }
     }
     // rubrica automatica dal primo nome
     const nm = list[0]?.name;
@@ -241,15 +280,25 @@ function Calendar({ session }) {
 
   const saveContact = async (c) => {
     const rec = { ...c, id: c.id || (crypto.randomUUID ? crypto.randomUUID() : String(Date.now())) };
+    const old = contacts.find((x) => x.id === rec.id);
     setContacts((prev) => [...prev.filter((x) => x.id !== rec.id), rec]);
     const { error } = await supabase.from("clients").upsert(rec);
-    if (error) alert("Salvataggio cliente non riuscito: " + error.message);
+    if (error) {
+      setContacts((prev) => [...prev.filter((x) => x.id !== rec.id), ...(old ? [old] : [])]);
+      alert("Salvataggio cliente non riuscito: " + error.message);
+      return null;
+    }
     return rec;
   };
 
   const deleteContact = async (id) => {
+    const old = contacts.find((x) => x.id === id);
     setContacts((prev) => prev.filter((x) => x.id !== id));
-    await supabase.from("clients").delete().eq("id", id);
+    const { data, error } = await supabase.from("clients").delete().eq("id", id).select("id");
+    if (error || !data || data.length === 0) {
+      if (old) setContacts((prev) => [...prev.filter((x) => x.id !== id), old]);
+      alert("Cancellazione cliente non riuscita" + (error ? ": " + error.message : ". Controlla la connessione e riprova."));
+    }
   };
 
   const shiftWeek = (n) => { const d = new Date(current); d.setDate(d.getDate() + n * 7); setCurrent(startOfWeek(d)); };
@@ -702,7 +751,7 @@ function RubricaModal({ contacts, onClose, onSave, onDelete }) {
 
   const startEdit = (c) => { setEditId(c.id); setName(c.name); setPhone(c.phone || ""); };
   const reset = () => { setEditId(null); setName(""); setPhone(""); };
-  const submit = async () => { if (!name.trim()) return; await onSave({ id: editId, name: name.trim(), phone: phone.trim() }); reset(); };
+  const submit = async () => { if (!name.trim()) return; const ok = await onSave({ id: editId, name: name.trim(), phone: phone.trim() }); if (ok) reset(); };
 
   return (
     <div style={s.overlay} onClick={onClose}>
@@ -777,7 +826,7 @@ function ReportModal({ bookings, onClose }) {
 
   const maxOra = Math.max(1, ...Object.values(dati.perOra));
 
-  const esporta = () => {
+  const esporta = async () => {
     // foglio 1: elenco prenotazioni
     const righe = dati.inRange
       .slice()
@@ -800,6 +849,8 @@ function ReportModal({ bookings, onClose }) {
     }));
     riepilogo.push({ Campo: "TOTALE", Prenotazioni: dati.count, Incasso_EUR: dati.totale });
 
+    // la libreria Excel è pesante: si scarica solo quando serve
+    const XLSX = await import("xlsx");
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(righe), "Prenotazioni");
     XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(riepilogo), "Riepilogo");
