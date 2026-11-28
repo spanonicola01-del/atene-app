@@ -300,7 +300,7 @@ function npmGlobalPrefix(env = process.env, platform = process.platform, execPat
 // runs with the project as its cwd.
 function cliSpawnArgs(cliBin, args, platform = process.platform) {
   if (cliBin) return [process.execPath, [cliBin, ...args]];
-  return [platform === 'win32' ? 'npx.cmd' : 'npx', ['--prefer-offline', '--prefix', helperRoot, '@claude-flow/cli', ...args]];
+  return [platform === 'win32' ? 'npx.cmd' : 'npx', ['--prefer-offline', '--prefix', helperRoot, '@claude-flow/cli@3.80.9', ...args]];
 }
 
 function spawnDetachedHookRefresh(subcommand) {
