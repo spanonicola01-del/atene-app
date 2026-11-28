@@ -249,7 +249,7 @@ function getStatuslineData() {
     .filter((bin) => shellSafe(bin) && shellSafe(process.execPath))
     .map((bin) => '"' + process.execPath + '" "' + bin + '" hooks statusline --json')
     // --prefix: npx resolves the package from HELPER_ROOT, not the project.
-    .concat(shellSafe(HELPER_ROOT) ? ['npx --prefer-offline --prefix "' + HELPER_ROOT + '" @claude-flow/cli hooks statusline --json'] : []);
+    .concat(shellSafe(HELPER_ROOT) ? ['npx --prefer-offline --prefix "' + HELPER_ROOT + '" @claude-flow/cli@3.80.9 hooks statusline --json'] : []);
   for (const cmd of cmds) {
     try {
       const raw = execSync(

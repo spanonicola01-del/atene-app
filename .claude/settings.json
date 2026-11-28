@@ -7,8 +7,8 @@
   },
   "permissions": {
     "allow": [
-      "Bash(npx @claude-flow*)",
-      "Bash(npx claude-flow*)",
+      "Bash(npx @claude-flow/cli@3.80.9 *)",
+      "Bash(npx ruflo@3.80.9 *)",
       "mcp__claude-flow__*"
     ],
     "deny": [
